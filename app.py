@@ -20,7 +20,7 @@ os.makedirs(HISTORY_DIR, exist_ok=True)
 
 # === Load Logo ===
 logo = Image.open("mathmandala_logo.png")
-col1, col2 = st.s([1, 8])
+col1, col2 = st.columns([1, 8])
 with col1:
     st.image(logo, width=90)
 with col2:
@@ -70,6 +70,7 @@ if st.session_state.selected_history:
     if data['subject'] == "Math":
         for q_num, question in data["problems"].items():
             st.markdown(f"---\n### Q{q_num}. {question}")
+            #st.markdown(data["answers"].get(str(q_num), ""))
             st.markdown(data["feedback"].get(str(q_num), ""))
     elif data['subject'] == "Story Mountain":
         st.markdown("### ✍️ Story Task")
