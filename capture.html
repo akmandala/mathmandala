@@ -54,7 +54,6 @@
     const cameraSelect = document.getElementById("cameraSelect");
     const startBtn = document.getElementById("start");
 
-    // Load from localStorage
     nameInput.value = localStorage.getItem("studentName") || "";
     subjectInput.value = localStorage.getItem("subjectName") || "math";
 
@@ -81,11 +80,11 @@
       localStorage.setItem("cameraId", cameraId);
 
       navigator.mediaDevices.getUserMedia({
-        video: {       
-		width: { ideal: 3264 },
-      		height: { ideal: 2448 },
-		deviceId: { exact: cameraId } 
-	}
+        video: {
+          width: { ideal: 3264 },
+          height: { ideal: 2448 },
+          deviceId: { exact: cameraId }
+        }
       }).then(stream => {
         video.srcObject = stream;
 
@@ -97,17 +96,28 @@
           canvas.toBlob(blob => {
             const now = new Date().toISOString().replace(/[:.]/g, "-");
             const filename = `mathmandala_${name}_${subject}_${now}.jpg`;
-            const url = URL.createObjectURL(blob);
 
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            a.click();
+            const formData = new FormData();
+            formData.append("file", blob, filename);
+            formData.append("name", name);
+            formData.append("subject", subject);
+
+            fetch("https://mathmandala-upload.onrender.com/upload", {
+              method: "POST",
+              body: formData
+            }).then(response => {
+              if (response.ok) {
+                document.getElementById("message").textContent = "✅ Uploaded successfully!";
+              } else {
+                document.getElementById("message").textContent = "❌ Upload failed.";
+              }
+            }).catch(error => {
+              document.getElementById("message").textContent = "❌ Error sending to server.";
+            });
 
             stream.getTracks().forEach(track => track.stop());
-            window.close();
           }, "image/jpeg");
-        }, 3000); // Wait before capture
+        }, 3000);
       }).catch(err => {
         document.getElementById("message").textContent = "⚠️ Camera access error.";
       });
