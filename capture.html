@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Math Mandala - Capture</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: sans-serif;
+      height: 100vh;
+    }
+    video {
+      width: 90%;
+      max-width: 640px;
+      border: 2px solid #333;
+      margin-bottom: 12px;
+    }
+    #message {
+      margin-bottom: 12px;
+      font-size: 1.2em;
+      color: #222;
+    }
+  </style>
+</head>
+<body>
+  <div id="message">📷 Capturing in 3 seconds...</div>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" style="display: none;"></canvas>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const params = new URLSearchParams(window.location.search);
+    const name = params.get("name") || "student";
+    const subject = params.get("subject") || "subject";
+
+    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+      video.srcObject = stream;
+
+      setTimeout(() => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+
+        canvas.toBlob(blob => {
+          const now = new Date().toISOString().replace(/[:.]/g, "-");
+          const filename = `${name}_${subject}_${now}.jpg`;
+          const url = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          a.click();
+
+          stream.getTracks().forEach(track => track.stop());
+          window.close();
+        }, 'image/jpeg');
+      }, 3000); // Delay before capture (3s)
+    }).catch(err => {
+      document.getElementById("message").textContent = "⚠️ Cannot access the camera.";
+    });
+  </script>
+</body>
+</html>
