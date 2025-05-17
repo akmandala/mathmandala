@@ -3,7 +3,6 @@ from openai import OpenAI
 import requests
 import base64
 from PIL import Image
-from PIL import UnidentifiedImageError
 import re
 import os
 import time
@@ -14,6 +13,7 @@ MATHPIX_APP_KEY = st.secrets["MATHPIX_APP_KEY"]
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 RENDER_UPLOADS_URL = "https://mathmandala-upload.onrender.com/uploads"
 RENDER_FILE_BASE = "https://mathmandala-upload.onrender.com/files"
+RENDER_DELETE_ALL = "https://mathmandala-upload.onrender.com/delete-all"
 
 # === Load Logo ===
 logo = Image.open("mathmandala_logo.png")
@@ -40,13 +40,11 @@ def fetch_latest_image(prefix="mathmandala_", timeout=60):
                     img_data = requests.get(image_url).content
                     with open("temp_upload.jpg", "wb") as f:
                         f.write(img_data)
-
-                    # ✅ Check if it's a real image
                     try:
                         Image.open("temp_upload.jpg").verify()
                         return "temp_upload.jpg"
-                    except UnidentifiedImageError:
-                        os.remove("temp_upload.jpg")  # delete corrupt file
+                    except:
+                        os.remove("temp_upload.jpg")
         except Exception as e:
             st.warning(f"Error checking uploads: {e}")
         time.sleep(2)
@@ -161,6 +159,10 @@ Please identify any mistakes, if any, and explain how to solve the problem step 
             st.success("🎓 Feedback")
             st.markdown(feedback)
         os.remove(image_path)
+        try:
+            requests.delete(RENDER_DELETE_ALL)
+        except:
+            st.warning("Could not delete uploaded files from server.")
     else:
         st.warning("No new image received in time. Please try again.")
 
@@ -230,5 +232,10 @@ Student's Story Mountain:
             st.success("📖 Feedback on Story Plan")
             st.markdown(feedback)
         os.remove(image_path)
+        try:
+            requests.delete(RENDER_DELETE_ALL)
+        except:
+            st.warning("Could not delete uploaded files from server.")
     else:
         st.warning("No story image received in time. Please try again.")
+
