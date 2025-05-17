@@ -66,7 +66,7 @@ def fetch_latest_image(prefix="mathmandala_", timeout=60):
 if st.session_state.selected_history:
     data = st.session_state.selected_history
     st.subheader(f"📖 Review: {data['timestamp']} - {data['subject']}")
-    st.image(data["image"], caption="Past Submission", use_column_width=True)
+    st.image(data["image"], caption="Past Submission", use_container_width=True)
     for q_num, question in data["problems"].items():
         st.markdown(f"---\n### Q{q_num}. {question}")
         st.markdown(data["answers"].get(str(q_num), ""))
@@ -169,7 +169,7 @@ Please identify any mistakes, if any, and explain how to solve the problem step 
         placeholder = st.empty()
         image_path, image_name = fetch_latest_image()
         if image_path:
-            placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_container_width=True)
+            placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_column_width=True)
             with st.spinner("Reading sheet with MathPix..."):
                 answers = ocr_with_mathpix_retry(image_path, expected_questions=6)
             feedback_list = {}
@@ -187,13 +187,13 @@ Please identify any mistakes, if any, and explain how to solve the problem step 
 
             timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
             json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
-            Image.open(image_path).save(os.path.join(HISTORY_DIR, f"{timestamp}.jpg"))
+            Image.open(image_path).convert("RGB").save(os.path.join(HISTORY_DIR, f"{timestamp}.jpg"))
             with open(json_path, "w") as f:
                 json.dump({
                     "timestamp": timestamp,
                     "subject": subject,
                     "problems": PROBLEMS,
-                    "answers": answers,
+                    "answers": {k: v for k, v in answers.items()},
                     "feedback": feedback_list,
                     "image": os.path.join(HISTORY_DIR, f"{timestamp}.jpg")
                 }, f)
