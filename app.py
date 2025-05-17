@@ -2,20 +2,20 @@ import streamlit as st
 from openai import OpenAI
 import requests
 import base64
-import tempfile
 from PIL import Image
+from PIL import UnidentifiedImageError
 import re
 import os
-import glob
 import time
 
 # === CONFIG ===
-# Load from st.secrets
 MATHPIX_APP_ID = st.secrets["MATHPIX_APP_ID"]
 MATHPIX_APP_KEY = st.secrets["MATHPIX_APP_KEY"]
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+RENDER_UPLOADS_URL = "https://mathmandala-upload.onrender.com/uploads"
+RENDER_FILE_BASE = "https://mathmandala-upload.onrender.com/files"
 
-# Load logo
+# === Load Logo ===
 logo = Image.open("mathmandala_logo.png")
 col1, col2 = st.columns([1, 8])
 with col1:
@@ -26,7 +26,33 @@ with col2:
 # === Select Subject ===
 subject = st.selectbox("Select Subject", ["Math", "Story Mountain"])
 
-# === Dynamic Content ===
+# === Helper: Download Latest File from Render ===
+def fetch_latest_image(prefix="mathmandala_", timeout=60):
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            res = requests.get(RENDER_UPLOADS_URL)
+            if res.status_code == 200:
+                files = sorted([f for f in res.json().get("files", []) if f.startswith(prefix) and f.endswith(".jpg")])
+                if files:
+                    latest = files[-1]
+                    image_url = f"{RENDER_FILE_BASE}/{latest}"
+                    img_data = requests.get(image_url).content
+                    with open("temp_upload.jpg", "wb") as f:
+                        f.write(img_data)
+
+                    # ✅ Check if it's a real image
+                    try:
+                        Image.open("temp_upload.jpg").verify()
+                        return "temp_upload.jpg"
+                    except UnidentifiedImageError:
+                        os.remove("temp_upload.jpg")  # delete corrupt file
+        except Exception as e:
+            st.warning(f"Error checking uploads: {e}")
+        time.sleep(2)
+    return None
+
+# === Math Section ===
 if subject == "Math":
     def generate_dynamic_problems():
         prompt = """
@@ -55,8 +81,6 @@ Do not include answers.
                 number = int(match.group(1))
                 problems[number] = match.group(2)
         return problems
-
-    PROBLEMS = generate_dynamic_problems()
 
     def ocr_with_mathpix_retry(image_path, expected_questions=6):
         for attempt in range(2):
@@ -112,46 +136,35 @@ Please identify any mistakes, if any, and explain how to solve the problem step 
         )
         return response.choices[0].message.content
 
-    DOWNLOADS_DIR = os.path.expanduser("~/Downloads")
-    PATTERN = os.path.join(DOWNLOADS_DIR, "mathmandala_*_math_*.jpg")
-
-    def get_latest_mathmandala_image():
-        files = glob.glob(PATTERN)
-        if not files:
-            return None
-        return max(files, key=os.path.getmtime)
-
-    def delete_file(path):
-        if os.path.exists(path):
-            os.remove(path)
+    PROBLEMS = generate_dynamic_problems()
 
     st.markdown("Students should answer all 6 questions on **one sheet**, label them `Q1.`, `Q2.`, etc.")
     with st.expander("📝 Questions"):
         for i in range(1, 7):
             st.markdown(f"**Q{i}.** {PROBLEMS[i]}")
 
-    st.info("Waiting for scan from Math Mandala extension...")
+    st.info("Waiting for image upload from extension via Render server...")
     placeholder = st.empty()
-    while True:
-        latest_file = get_latest_mathmandala_image()
-        if latest_file:
-            placeholder.image(latest_file, caption="Captured by Math Mandala Extension", use_container_width=True)
-            with st.spinner("Reading sheet with MathPix..."):
-                answers = ocr_with_mathpix_retry(latest_file, expected_questions=6)
-            for q_num, question in PROBLEMS.items():
-                st.markdown(f"---\n### Q{q_num}. {question}")
-                solution = answers.get(q_num, "")
-                if not solution:
-                    st.warning("No solution detected for this question.")
-                    continue
-                with st.spinner("Tutoring in progress..."):
-                    feedback = get_openai_feedback(question, solution)
-                st.success("🎓 Feedback")
-                st.markdown(feedback)
-            delete_file(latest_file)
-            break
-        time.sleep(5)
+    image_path = fetch_latest_image()
+    if image_path:
+        placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_container_width=True)
+        with st.spinner("Reading sheet with MathPix..."):
+            answers = ocr_with_mathpix_retry(image_path, expected_questions=6)
+        for q_num, question in PROBLEMS.items():
+            st.markdown(f"---\n### Q{q_num}. {question}")
+            solution = answers.get(q_num, "")
+            if not solution:
+                st.warning("No solution detected for this question.")
+                continue
+            with st.spinner("Tutoring in progress..."):
+                feedback = get_openai_feedback(question, solution)
+            st.success("🎓 Feedback")
+            st.markdown(feedback)
+        os.remove(image_path)
+    else:
+        st.warning("No new image received in time. Please try again.")
 
+# === Story Section ===
 elif subject == "Story Mountain":
     def generate_story_task():
         prompt = """
@@ -174,23 +187,6 @@ Do not include the Story Mountain structure, summary, or plot outline.
         )
         return response.choices[0].message.content
 
-    st.markdown("Students should complete their Story Mountain using the printable template.")
-    st.subheader("🧠 Creative Writing Prompt")
-    st.markdown(generate_story_task())
-
-    DOWNLOADS_DIR = os.path.expanduser("~/Downloads")
-    PATTERN = os.path.join(DOWNLOADS_DIR, "mathmandala_*_story_*.jpg")
-
-    def get_latest_story_image():
-        files = glob.glob(PATTERN)
-        if not files:
-            return None
-        return max(files, key=os.path.getmtime)
-
-    def delete_file(path):
-        if os.path.exists(path):
-            os.remove(path)
-
     def feedback_on_story(text):
         prompt = f"""
 Evaluate this Story Mountain plan written by a Year 7 student. Give feedback on whether each part is present (Opening, Build-up, Climax, Falling Action, Ending), the creativity of the story, and how well it fits the assigned challenge.
@@ -205,32 +201,34 @@ Student's Story Mountain:
         )
         return response.choices[0].message.content
 
-    st.info("Waiting for Story Mountain scan from extension...")
-    placeholder = st.empty()
-    while True:
-        latest_file = get_latest_story_image()
-        if latest_file:
-            placeholder.image(latest_file, caption="Captured Story Mountain", use_container_width=True)
-            with open(latest_file, "rb") as image_file:
-                img_base64 = base64.b64encode(image_file.read()).decode()
-            headers = {
-                "app_id": MATHPIX_APP_ID,
-                "app_key": MATHPIX_APP_KEY,
-                "Content-type": "application/json"
-            }
-            data = {
-                "src": f"data:image/jpeg;base64,{img_base64}",
-                "formats": ["text"],
-                "ocr": ["text"]
-            }
-            response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
-            text = response.json().get("text", "")
-            if text:
-                with st.spinner("Providing feedback on your story..."):
-                    feedback = feedback_on_story(text)
-                st.success("📖 Feedback on Story Plan")
-                st.markdown(feedback)
-            delete_file(latest_file)
-            break
-        time.sleep(5)
+    st.markdown("Students should complete their Story Mountain using the printable template.")
+    st.subheader("🧠 Creative Writing Prompt")
+    st.markdown(generate_story_task())
 
+    st.info("Waiting for Story Mountain scan from extension via Render...")
+    placeholder = st.empty()
+    image_path = fetch_latest_image()
+    if image_path:
+        placeholder.image(image_path, caption="Captured Story Mountain", use_container_width=True)
+        with open(image_path, "rb") as image_file:
+            img_base64 = base64.b64encode(image_file.read()).decode()
+        headers = {
+            "app_id": MATHPIX_APP_ID,
+            "app_key": MATHPIX_APP_KEY,
+            "Content-type": "application/json"
+        }
+        data = {
+            "src": f"data:image/jpeg;base64,{img_base64}",
+            "formats": ["text"],
+            "ocr": ["text"]
+        }
+        response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
+        text = response.json().get("text", "")
+        if text:
+            with st.spinner("Providing feedback on your story..."):
+                feedback = feedback_on_story(text)
+            st.success("📖 Feedback on Story Plan")
+            st.markdown(feedback)
+        os.remove(image_path)
+    else:
+        st.warning("No story image received in time. Please try again.")
