@@ -6,6 +6,7 @@ from PIL import Image
 import re
 import os
 import time
+import json
 
 # === CONFIG ===
 MATHPIX_APP_ID = st.secrets["MATHPIX_APP_ID"]
@@ -14,6 +15,8 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 RENDER_UPLOADS_URL = "https://mathmandala-upload.onrender.com/uploads"
 RENDER_FILE_BASE = "https://mathmandala-upload.onrender.com/files"
 RENDER_DELETE_ALL = "https://mathmandala-upload.onrender.com/delete-all"
+HISTORY_DIR = ".history"
+os.makedirs(HISTORY_DIR, exist_ok=True)
 
 # === Load Logo ===
 logo = Image.open("mathmandala_logo.png")
@@ -23,8 +26,17 @@ with col1:
 with col2:
     st.markdown("<h1 style='padding-top: 10px;'>Math Mandala</h1>", unsafe_allow_html=True)
 
-# === Select Subject ===
-subject = st.selectbox("Select Subject", ["Math", "Story Mountain"])
+# === Sidebar History ===
+with st.sidebar:
+    st.header("📚 History")
+    history_files = sorted([f for f in os.listdir(HISTORY_DIR) if f.endswith(".json")])
+    selected = st.selectbox("View Past Session", ["None"] + history_files[::-1])
+    if selected != "None":
+        with open(os.path.join(HISTORY_DIR, selected), "r") as f:
+            past = json.load(f)
+        st.session_state.selected_history = past
+    else:
+        st.session_state.selected_history = None
 
 # === Helper: Download Latest File from Render ===
 def fetch_latest_image(prefix="mathmandala_", timeout=60):
@@ -42,18 +54,30 @@ def fetch_latest_image(prefix="mathmandala_", timeout=60):
                         f.write(img_data)
                     try:
                         Image.open("temp_upload.jpg").verify()
-                        return "temp_upload.jpg"
+                        return "temp_upload.jpg", latest
                     except:
                         os.remove("temp_upload.jpg")
         except Exception as e:
             st.warning(f"Error checking uploads: {e}")
         time.sleep(2)
-    return None
+    return None, None
 
 # === Math Section ===
-if subject == "Math":
-    def generate_dynamic_problems():
-        prompt = """
+if st.session_state.selected_history:
+    data = st.session_state.selected_history
+    st.subheader(f"📖 Review: {data['timestamp']} - {data['subject']}")
+    st.image(data["image"], caption="Past Submission", use_column_width=True)
+    for q_num, question in data["problems"].items():
+        st.markdown(f"---\n### Q{q_num}. {question}")
+        st.markdown(data["answers"].get(str(q_num), ""))
+        st.markdown(data["feedback"].get(str(q_num), ""))
+
+else:
+    subject = st.selectbox("Select Subject", ["Math", "Story Mountain"])
+
+    if subject == "Math":
+        def generate_dynamic_problems():
+            prompt = """
 Generate 6 challenging and diverse Year 7 math problems. Each should come from a different area:
 Q1. Algebra
 Q2. Geometry
@@ -66,60 +90,60 @@ Q1. [question text]
 ...etc
 Do not include answers.
 """
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4
-        )
-        text = response.choices[0].message.content
-        problems = {}
-        for line in text.strip().split("\n"):
-            match = re.match(r'^Q?(\d+)\.\s*(.+)', line.strip())
-            if match:
-                number = int(match.group(1))
-                problems[number] = match.group(2)
-        return problems
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4
+            )
+            text = response.choices[0].message.content
+            problems = {}
+            for line in text.strip().split("\n"):
+                match = re.match(r'^Q?(\d+)\.\s*(.+)', line.strip())
+                if match:
+                    number = int(match.group(1))
+                    problems[number] = match.group(2)
+            return problems
 
-    def ocr_with_mathpix_retry(image_path, expected_questions=6):
-        for attempt in range(2):
-            with open(image_path, "rb") as image_file:
-                img_base64 = base64.b64encode(image_file.read()).decode()
+        def ocr_with_mathpix_retry(image_path, expected_questions=6):
+            for attempt in range(2):
+                with open(image_path, "rb") as image_file:
+                    img_base64 = base64.b64encode(image_file.read()).decode()
 
-            headers = {
-                "app_id": MATHPIX_APP_ID,
-                "app_key": MATHPIX_APP_KEY,
-                "Content-type": "application/json"
-            }
+                headers = {
+                    "app_id": MATHPIX_APP_ID,
+                    "app_key": MATHPIX_APP_KEY,
+                    "Content-type": "application/json"
+                }
 
-            data = {
-                "src": f"data:image/jpeg;base64,{img_base64}",
-                "formats": ["text"],
-                "ocr": ["math", "text"]
-            }
+                data = {
+                    "src": f"data:image/jpeg;base64,{img_base64}",
+                    "formats": ["text"],
+                    "ocr": ["math", "text"]
+                }
 
-            response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
-            text = response.json().get("text", "")
-            answers = parse_numbered_answers(text)
+                response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
+                text = response.json().get("text", "")
+                answers = parse_numbered_answers(text)
 
-            if len(answers) >= expected_questions:
-                return answers
-            time.sleep(1.5)
-        return answers
+                if len(answers) >= expected_questions:
+                    return answers
+                time.sleep(1.5)
+            return answers
 
-    def parse_numbered_answers(text):
-        answers = {}
-        current = None
-        for line in text.splitlines():
-            match = re.match(r'^Q(\d+)\.', line.strip())
-            if match:
-                current = int(match.group(1))
-                answers[current] = []
-            elif current:
-                answers[current].append(line)
-        return {k: '\n'.join(v).strip() for k, v in answers.items()}
+        def parse_numbered_answers(text):
+            answers = {}
+            current = None
+            for line in text.splitlines():
+                match = re.match(r'^Q(\d+)\.', line.strip())
+                if match:
+                    current = int(match.group(1))
+                    answers[current] = []
+                elif current:
+                    answers[current].append(line)
+            return {str(k): '\n'.join(v).strip() for k, v in answers.items()}
 
-    def get_openai_feedback(problem, user_solution):
-        prompt = f"""
+        def get_openai_feedback(problem, user_solution):
+            prompt = f"""
 A student is solving this math problem: {problem}
 
 Here is the student's handwritten solution:
@@ -127,115 +151,57 @@ Here is the student's handwritten solution:
 
 Please identify any mistakes, if any, and explain how to solve the problem step by step.
 """
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2
-        )
-        return response.choices[0].message.content
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2
+            )
+            return response.choices[0].message.content
 
-    PROBLEMS = generate_dynamic_problems()
+        PROBLEMS = generate_dynamic_problems()
 
-    st.markdown("Students should answer all 6 questions on **one sheet**, label them `Q1.`, `Q2.`, etc.")
-    with st.expander("📝 Questions"):
-        for i in range(1, 7):
-            st.markdown(f"**Q{i}.** {PROBLEMS[i]}")
+        st.markdown("Students should answer all 6 questions on **one sheet**, label them `Q1.`, `Q2.`, etc.")
+        with st.expander("📝 Questions"):
+            for i in range(1, 7):
+                st.markdown(f"**Q{i}.** {PROBLEMS[i]}")
 
-    st.info("Waiting for image upload from extension via Render server...")
-    placeholder = st.empty()
-    image_path = fetch_latest_image()
-    if image_path:
-        placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_container_width=True)
-        with st.spinner("Reading sheet with MathPix..."):
-            answers = ocr_with_mathpix_retry(image_path, expected_questions=6)
-        for q_num, question in PROBLEMS.items():
-            st.markdown(f"---\n### Q{q_num}. {question}")
-            solution = answers.get(q_num, "")
-            if not solution:
-                st.warning("No solution detected for this question.")
-                continue
-            with st.spinner("Tutoring in progress..."):
-                feedback = get_openai_feedback(question, solution)
-            st.success("🎓 Feedback")
-            st.markdown(feedback)
-        os.remove(image_path)
-        try:
-            requests.delete(RENDER_DELETE_ALL)
-        except:
-            st.warning("Could not delete uploaded files from server.")
-    else:
-        st.warning("No new image received in time. Please try again.")
+        st.info("Waiting for image upload from extension via Render server...")
+        placeholder = st.empty()
+        image_path, image_name = fetch_latest_image()
+        if image_path:
+            placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_container_width=True)
+            with st.spinner("Reading sheet with MathPix..."):
+                answers = ocr_with_mathpix_retry(image_path, expected_questions=6)
+            feedback_list = {}
+            for q_num, question in PROBLEMS.items():
+                st.markdown(f"---\n### Q{q_num}. {question}")
+                solution = answers.get(str(q_num), "")
+                if not solution:
+                    st.warning("No solution detected for this question.")
+                    continue
+                with st.spinner("Tutoring in progress..."):
+                    feedback = get_openai_feedback(question, solution)
+                st.success("🎓 Feedback")
+                st.markdown(feedback)
+                feedback_list[str(q_num)] = feedback
 
-# === Story Section ===
-elif subject == "Story Mountain":
-    def generate_story_task():
-        prompt = """
-Create a Story Mountain writing task for a Year 7 student.
-Provide the following only:
+            timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+            json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
+            Image.open(image_path).save(os.path.join(HISTORY_DIR, f"{timestamp}.jpg"))
+            with open(json_path, "w") as f:
+                json.dump({
+                    "timestamp": timestamp,
+                    "subject": subject,
+                    "problems": PROBLEMS,
+                    "answers": answers,
+                    "feedback": feedback_list,
+                    "image": os.path.join(HISTORY_DIR, f"{timestamp}.jpg")
+                }, f)
 
-* Genre
-* Main setting
-* Central character
-* Conflict or challenge
-
-Make it imaginative, challenging, and age-appropriate.
-
-Do not include the Story Mountain structure, summary, or plot outline.
-"""
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.5
-        )
-        return response.choices[0].message.content
-
-    def feedback_on_story(text):
-        prompt = f"""
-Evaluate this Story Mountain plan written by a Year 7 student. Give feedback on whether each part is present (Opening, Build-up, Climax, Falling Action, Ending), the creativity of the story, and how well it fits the assigned challenge.
-
-Student's Story Mountain:
-{text}
-"""
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
-        )
-        return response.choices[0].message.content
-
-    st.markdown("Students should complete their Story Mountain using the printable template.")
-    st.subheader("🧠 Creative Writing Prompt")
-    st.markdown(generate_story_task())
-
-    st.info("Waiting for Story Mountain scan from extension via Render...")
-    placeholder = st.empty()
-    image_path = fetch_latest_image()
-    if image_path:
-        placeholder.image(image_path, caption="Captured Story Mountain", use_container_width=True)
-        with open(image_path, "rb") as image_file:
-            img_base64 = base64.b64encode(image_file.read()).decode()
-        headers = {
-            "app_id": MATHPIX_APP_ID,
-            "app_key": MATHPIX_APP_KEY,
-            "Content-type": "application/json"
-        }
-        data = {
-            "src": f"data:image/jpeg;base64,{img_base64}",
-            "formats": ["text"],
-            "ocr": ["text"]
-        }
-        response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
-        text = response.json().get("text", "")
-        if text:
-            with st.spinner("Providing feedback on your story..."):
-                feedback = feedback_on_story(text)
-            st.success("📖 Feedback on Story Plan")
-            st.markdown(feedback)
-        os.remove(image_path)
-        try:
-            requests.delete(RENDER_DELETE_ALL)
-        except:
-            st.warning("Could not delete uploaded files from server.")
-    else:
-        st.warning("No story image received in time. Please try again.")
-
+            os.remove(image_path)
+            try:
+                requests.delete(RENDER_DELETE_ALL)
+            except:
+                st.warning("Could not delete uploaded files from server.")
+        else:
+            st.warning("No new image received in time. Please try again.")
