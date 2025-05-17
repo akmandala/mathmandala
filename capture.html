@@ -54,7 +54,7 @@
 
         canvas.toBlob(blob => {
           const now = new Date().toISOString().replace(/[:.]/g, "-");
-          const filename = `${name}_${subject}_${now}.jpg`;
+          const filename = `mathmandala_${name}_${subject}_${now}.jpg`;
           const url = URL.createObjectURL(blob);
 
           const a = document.createElement("a");
