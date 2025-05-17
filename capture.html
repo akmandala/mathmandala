@@ -39,7 +39,12 @@
     const name = params.get("name") || "student";
     const subject = params.get("subject") || "subject";
 
-    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+    navigator.mediaDevices.getUserMedia({
+    video: {
+      width: { ideal: 3264 },
+      height: { ideal: 2448 }
+    }
+    }).then(stream => {
       video.srcObject = stream;
 
       setTimeout(() => {
