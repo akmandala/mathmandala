@@ -20,55 +20,100 @@
       border: 2px solid #333;
       margin-bottom: 12px;
     }
-    #message {
-      margin-bottom: 12px;
-      font-size: 1.2em;
-      color: #222;
+    select, input, button {
+      font-size: 1em;
+      margin: 6px;
+      padding: 5px;
     }
   </style>
 </head>
 <body>
-  <div id="message">📷 Capturing in 3 seconds...</div>
+  <label>Student Name</label>
+  <input type="text" id="name" placeholder="e.g. John" />
+
+  <label>Subject</label>
+  <select id="subject">
+    <option value="math">Math</option>
+    <option value="story">Story</option>
+  </select>
+
+  <label>Camera</label>
+  <select id="cameraSelect"></select>
+
+  <button id="start">Start Camera</button>
   <video id="video" autoplay playsinline></video>
+
+  <div id="message">📷 Capturing in 3 seconds...</div>
   <canvas id="canvas" style="display: none;"></canvas>
 
   <script>
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
-    const params = new URLSearchParams(window.location.search);
-    const name = params.get("name") || "student";
-    const subject = params.get("subject") || "subject";
+    const nameInput = document.getElementById("name");
+    const subjectInput = document.getElementById("subject");
+    const cameraSelect = document.getElementById("cameraSelect");
+    const startBtn = document.getElementById("start");
 
-    navigator.mediaDevices.getUserMedia({
-    video: {
-      width: { ideal: 3264 },
-      height: { ideal: 2448 }
+    // Load from localStorage
+    nameInput.value = localStorage.getItem("studentName") || "";
+    subjectInput.value = localStorage.getItem("subjectName") || "math";
+
+    function loadCameras() {
+      navigator.mediaDevices.enumerateDevices().then(devices => {
+        devices.filter(d => d.kind === "videoinput").forEach((device, i) => {
+          const option = document.createElement("option");
+          option.value = device.deviceId;
+          option.text = device.label || `Camera ${i + 1}`;
+          cameraSelect.appendChild(option);
+        });
+        const savedCamera = localStorage.getItem("cameraId");
+        if (savedCamera) cameraSelect.value = savedCamera;
+      });
     }
-    }).then(stream => {
-      video.srcObject = stream;
 
-      setTimeout(() => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext("2d").drawImage(video, 0, 0);
+    startBtn.addEventListener("click", () => {
+      const name = nameInput.value || "student";
+      const subject = subjectInput.value || "math";
+      const cameraId = cameraSelect.value;
 
-        canvas.toBlob(blob => {
-          const now = new Date().toISOString().replace(/[:.]/g, "-");
-          const filename = `mathmandala_${name}_${subject}_${now}.jpg`;
-          const url = URL.createObjectURL(blob);
+      localStorage.setItem("studentName", name);
+      localStorage.setItem("subjectName", subject);
+      localStorage.setItem("cameraId", cameraId);
 
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = filename;
-          a.click();
+      navigator.mediaDevices.getUserMedia({
+        video: {       
+		width: { ideal: 3264 },
+      		height: { ideal: 2448 },
+		deviceId: { exact: cameraId } 
+	}
+      }).then(stream => {
+        video.srcObject = stream;
 
-          stream.getTracks().forEach(track => track.stop());
-          window.close();
-        }, 'image/jpeg');
-      }, 3000); // Delay before capture (3s)
-    }).catch(err => {
-      document.getElementById("message").textContent = "⚠️ Cannot access the camera.";
+        setTimeout(() => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          canvas.getContext("2d").drawImage(video, 0, 0);
+
+          canvas.toBlob(blob => {
+            const now = new Date().toISOString().replace(/[:.]/g, "-");
+            const filename = `mathmandala_${name}_${subject}_${now}.jpg`;
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+
+            stream.getTracks().forEach(track => track.stop());
+            window.close();
+          }, "image/jpeg");
+        }, 3000); // Wait before capture
+      }).catch(err => {
+        document.getElementById("message").textContent = "⚠️ Camera access error.";
+      });
     });
+
+    loadCameras();
   </script>
 </body>
 </html>
