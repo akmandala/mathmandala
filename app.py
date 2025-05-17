@@ -73,8 +73,8 @@ if st.session_state.selected_history:
             #st.markdown(data["answers"].get(str(q_num), ""))
             st.markdown(data["feedback"].get(str(q_num), ""))
     elif data['subject'] == "Story Mountain":
-        st.markdown("### ✍️ Student's Work")
-        st.markdown(data["text"], unsafe_allow_html=True)
+        st.markdown("### ✍️ Story Task")
+        st.markdown(data["task"], unsafe_allow_html=True)
         st.markdown("### 📖 Feedback")
         st.markdown(data["feedback"], unsafe_allow_html=True)
 else:
