@@ -350,12 +350,24 @@ Evaluate the drawing based on:
 
 Then provide constructive feedback for improvement.
 """
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3
-                )
-                return response.choices[0].message.content
+                #response = client.chat.completions.create(
+                #    model="gpt-4",
+                #    messages=[{"role": "user", "content": prompt}],
+                #    temperature=0.3
+                #)
+                text = """
+Assignment:
+
+Draw and label a detailed illustration of the human respiratory system. Your drawing should include the following structures: nasal cavity, pharynx, larynx, trachea, bronchi, lungs, and alveoli.
+
+Each label should not only identify the part, but also include a brief description of its function within the system. Make sure to accurately depict the relative size and location of each structure to demonstrate your understanding of their interrelationships within the system.
+
+To further challenge your understanding of form and function, include a smaller, zoomed-in illustration of an alveolus, showing its structure and how it facilitates the exchange of oxygen and carbon dioxide.
+
+Remember, accuracy and attention to detail are crucial for this assignment. Your drawing should be neat and the labels should be clearly legible.
+                """
+                #return response.choices[0].message.content
+                return text
 
             st.markdown("Students should draw and label the assigned biological system.")
             st.subheader("🧪 Biology Drawing Task")
