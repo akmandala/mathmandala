@@ -234,13 +234,20 @@ Make it imaginative, challenging, and age-appropriate.
 
 Do not include the Story Mountain structure, summary, or plot outline.
 """
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.5
-                )
-                return response.choices[0].message.content
-
+                #response = client.chat.completions.create(
+                #    model="gpt-4",
+                #    messages=[{"role": "user", "content": prompt}],
+                #    temperature=0.5
+                #)
+                text = """
+* Genre: Fantasy
+* Main setting: A mystical forest filled with magical creatures and hidden realms.
+* Central character: A timid, 12-year-old girl who discovers she has the ability to communicate with animals.
+* Conflict or challenge: The girl must find and return a stolen artifact to its rightful place in order to restore peace and balance in the forest. She must overcome her shyness, build friendships with the forest creatures, and outwit the cunning thief who is determined to keep the artifact for their own selfish gains.
+                """
+                #return response.choices[0].message.content
+                return text
+            
             def feedback_on_story(text):
                 prompt = f"""
 Evaluate this Story Mountain plan written by a Year 7 student. Give feedback on whether each part is present (Opening, Build-up, Climax, Falling Action, Ending), the creativity of the story, and how well it fits the assigned challenge.
