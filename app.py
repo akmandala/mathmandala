@@ -95,12 +95,20 @@ Q1. [question text]
 ...etc
 Do not include answers.
 """
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.4
-                )
-                text = response.choices[0].message.content
+                #response = client.chat.completions.create(
+                #    model="gpt-4",
+                #    messages=[{"role": "user", "content": prompt}],
+                #    temperature=0.4
+                #)
+                #text = response.choices[0].message.content
+                text = """
+Q1. Solve for x: 5x - 3(2x - 7) = 11.
+Q2. The base of a triangle is 8 cm and the height is 15 cm. What is the area of the triangle?
+Q3. If you subtract 3.75 from 7.5, what is the result?
+Q4. In a bag of red and blue marbles, the ratio of red to blue marbles is 3:7. If there are 40 marbles in total, how many are blue?
+Q5. A bag contains 4 red balls, 5 blue balls, and 3 green balls. If you pick one ball without looking, what is the probability that it is not green?
+Q6. The following are the test scores of seven students: 85, 90, 88, 92, 95, 88, 90. What is the median score?
+                """
                 problems = {}
                 for line in text.strip().split("\n"):
                     match = re.match(r'^Q?(\d+)\.\s*(.+)', line.strip())
