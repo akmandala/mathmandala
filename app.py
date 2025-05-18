@@ -77,8 +77,13 @@ if st.session_state.selected_history:
         st.markdown(data["task"], unsafe_allow_html=True)
         st.markdown("### 📖 Feedback")
         st.markdown(data["feedback"], unsafe_allow_html=True)
+    elif data['subject'] == "Biology":
+        st.markdown("### ✍️ Biology Task")
+        st.markdown(data["task"], unsafe_allow_html=True)
+        st.markdown("### 📖 Feedback")
+        st.markdown(data["feedback"], unsafe_allow_html=True)
 else:
-    subject = st.selectbox("Select Subject", ["Math", "Story Mountain"])
+    subject = st.selectbox("Select Subject", ["Math", "Story Mountain", "Biology"])
     if st.button("🚀 Generate Task"):
         if subject == "Math":
             def generate_dynamic_problems():
@@ -312,4 +317,94 @@ Student's Story Mountain:
                     st.warning("Could not delete uploaded files from server.")
             else:
                 st.warning("No story image received in time. Please try again.")
+                
+        elif subject == "Biology":
+            def generate_biology_task():
+                prompt = """
+Generate a high-difficulty Year 8 biology drawing assignment.
+
+The assignment should ask the student to:
+- Draw and clearly label a biological system or structure
+- Include 5–8 correct labels
+- Challenge understanding of form and function
+
+Do not include the drawing or labels — only the instruction.
+"""
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.5
+                )
+                return response.choices[0].message.content
+
+            def feedback_on_biology_drawing(text):
+                prompt = f"""
+This is a student's labeled biology diagram:
+{text}
+
+Evaluate the drawing based on:
+- Whether all expected parts are present
+- The accuracy of the labels
+- Biological correctness
+- Any missing or mislabeled structures
+
+Then provide constructive feedback for improvement.
+"""
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3
+                )
+                return response.choices[0].message.content
+
+            st.markdown("Students should draw and label the assigned biological system.")
+            st.subheader("🧪 Biology Drawing Task")
+            task = generate_biology_task()
+            st.markdown(task)
+
+            st.info("Waiting for drawing upload from extension via Render...")
+            placeholder = st.empty()
+            image_path, image_name = fetch_latest_image()
+            if image_path:
+                placeholder.image(image_path, caption="Captured Biology Drawing", use_container_width=True)
+                with open(image_path, "rb") as image_file:
+                    img_base64 = base64.b64encode(image_file.read()).decode()
+                headers = {
+                    "app_id": MATHPIX_APP_ID,
+                    "app_key": MATHPIX_APP_KEY,
+                    "Content-type": "application/json"
+                }
+                data = {
+                    "src": f"data:image/jpeg;base64,{img_base64}",
+                    "formats": ["text"],
+                    "ocr": ["text"]
+                }
+                response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
+                text = response.json().get("text", "")
+                if text:
+                    with st.spinner("Providing feedback on your diagram..."):
+                        feedback = feedback_on_biology_drawing(text)
+                    st.success("🧬 Feedback on Biology Diagram")
+                    st.markdown(feedback)
+
+                    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+                    json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
+                    Image.open(image_path).convert("RGB").save(os.path.join(HISTORY_DIR, f"{timestamp}.jpg"))
+                    with open(json_path, "w") as f:
+                        json.dump({
+                            "timestamp": timestamp,
+                            "subject": subject,
+                            "task": task,
+                            "text": text,
+                            "feedback": feedback,
+                            "image": os.path.join(HISTORY_DIR, f"{timestamp}.jpg")
+                        }, f)
+
+                os.remove(image_path)
+                try:
+                    requests.delete(RENDER_DELETE_ALL)
+                except:
+                    st.warning("Could not delete uploaded files from server.")
+            else:
+                st.warning("No biology drawing received in time. Please try again.")
 
