@@ -330,30 +330,10 @@ The assignment should ask the student to:
 
 Do not include the drawing or labels — only the instruction.
 """
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.5
-                )
-                return response.choices[0].message.content
-
-            def feedback_on_biology_drawing(text):
-                prompt = f"""
-This is a student's labeled biology diagram:
-{text}
-
-Evaluate the drawing based on:
-- Whether all expected parts are present
-- The accuracy of the labels
-- Biological correctness
-- Any missing or mislabeled structures
-
-Then provide constructive feedback for improvement.
-"""
                 #response = client.chat.completions.create(
                 #    model="gpt-4",
                 #    messages=[{"role": "user", "content": prompt}],
-                #    temperature=0.3
+                #    temperature=0.5
                 #)
                 text = """
 Assignment:
@@ -368,6 +348,27 @@ Remember, accuracy and attention to detail are crucial for this assignment. Your
                 """
                 #return response.choices[0].message.content
                 return text
+
+            def feedback_on_biology_drawing(text):
+                prompt = f"""
+This is a student's labeled biology diagram:
+{text}
+
+Evaluate the drawing based on:
+- Whether all expected parts are present
+- The accuracy of the labels
+- Biological correctness
+- Any missing or mislabeled structures
+
+Then provide constructive feedback for improvement.
+"""
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3
+                )
+
+                return response.choices[0].message.content
 
             st.markdown("Students should draw and label the assigned biological system.")
             st.subheader("🧪 Biology Drawing Task")
