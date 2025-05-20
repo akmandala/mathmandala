@@ -171,6 +171,8 @@ data:image/jpeg;base64,{image_b64}
 
 Reply with JSON:
 """
+                print("=== PROMPT TO OPENAI ===")
+                print(prompt[:1500] + "\n... (truncated)" if len(prompt) > 1500 else prompt)
                 response = client.chat.completions.create(
                     model="gpt-4.1",
                     messages=[{"role": "user", "content": prompt}],
