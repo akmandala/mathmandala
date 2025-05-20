@@ -126,28 +126,28 @@ Q6. The following are the test scores of seven students: 85, 90, 88, 92, 95, 88,
                 for attempt in range(2):
                     with open(image_path, "rb") as image_file:
                         img_base64 = base64.b64encode(image_file.read()).decode()
-
+        
                     headers = {
                         "app_id": MATHPIX_APP_ID,
                         "app_key": MATHPIX_APP_KEY,
                         "Content-type": "application/json"
                     }
-
+        
                     data = {
                         "src": f"data:image/jpeg;base64,{img_base64}",
                         "formats": ["text"],
                         "ocr": ["math", "text"]
                     }
-
+        
                     response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
                     text = response.json().get("text", "")
                     answers = parse_numbered_answers(text)
-
+        
                     if len(answers) >= expected_questions:
                         return answers
                     time.sleep(1.5)
                 return answers
-
+        
             def parse_numbered_answers(text):
                 answers = {}
                 current = None
@@ -159,30 +159,59 @@ Q6. The following are the test scores of seven students: 85, 90, 88, 92, 95, 88,
                     elif current:
                         answers[current].append(line)
                 return {str(k): '\n'.join(v).strip() for k, v in answers.items()}
-
-            def get_openai_feedback(problem, user_solution):
+        
+            def get_openai_math_feedback(questions_dict, answers_dict, image_path):
+                with open(image_path, "rb") as img_file:
+                    image_b64 = base64.b64encode(img_file.read()).decode()
+        
                 prompt = f"""
-A student is solving this math problem: {problem}
+You are a math tutor reviewing a scanned student worksheet. You will receive:
 
-Here is the student's handwritten solution:
-{user_solution}
+1. The **OCR text**, extracted from the image, already organized by question number (Q1 to Q6).
+2. The **original image**, encoded in base64, for visual reference.
 
-Please identify any mistakes, if any, and explain how to solve the problem step by step.
+Your task:
+- Analyze each question using **both** the OCR text and the image to identify mistakes and suggest improvements.
+- Return a **JSON object** structured like:
+{{
+  "Q1": "Feedback for question 1...",
+  "Q2": "Feedback for question 2...",
+  ...
+}}
+
+OCR Text:
+{json.dumps(answers_dict, indent=2)}
+
+Base64 Image (JPEG):
+data:image/jpeg;base64,{image_b64}
+
+Start your JSON reply now:
 """
                 response = client.chat.completions.create(
-                    model="gpt-4",
+                    model="gpt-4-vision-preview",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.2
+                    temperature=0.2,
+                    max_tokens=1500
                 )
-                return response.choices[0].message.content
-
+        
+                import json, re
+                try:
+                    raw = response.choices[0].message.content
+                    match = re.search(r"\{.*\}", raw, re.DOTALL)
+                    if match:
+                        return json.loads(match.group(0))
+                    else:
+                        return {"error": "No JSON detected", "raw": raw}
+                except Exception as e:
+                    return {"error": str(e), "raw": response.choices[0].message.content}
+        
             PROBLEMS = generate_dynamic_problems()
-
+        
             st.markdown("Students should answer all 6 questions on **one sheet**, label them `Q1.`, `Q2.`, etc.")
             with st.expander("📝 Questions"):
                 for i in range(1, 7):
                     st.markdown(f"**Q{i}.** {PROBLEMS[i]}")
-
+        
             st.info("Waiting for image upload from extension via Render server...")
             placeholder = st.empty()
             image_path, image_name = fetch_latest_image()
@@ -190,19 +219,18 @@ Please identify any mistakes, if any, and explain how to solve the problem step 
                 placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_container_width=True)
                 with st.spinner("Reading sheet with MathPix..."):
                     answers = ocr_with_mathpix_retry(image_path, expected_questions=6)
-                feedback_list = {}
+                with st.spinner("Tutoring in progress..."):
+                    feedback_json = get_openai_math_feedback(PROBLEMS, answers, image_path)
+        
+                feedback_list = feedback_json if isinstance(feedback_json, dict) else {}
                 for q_num, question in PROBLEMS.items():
                     st.markdown(f"---\n### Q{q_num}. {question}")
-                    solution = answers.get(str(q_num), "")
-                    if not solution:
-                        st.warning("No solution detected for this question.")
-                        continue
-                    with st.spinner("Tutoring in progress..."):
-                        feedback = get_openai_feedback(question, solution)
-                    st.success("🎓 Feedback")
-                    st.markdown(feedback)
-                    feedback_list[str(q_num)] = feedback
-
+                    if str(q_num) not in feedback_list:
+                        st.warning("No feedback received for this question.")
+                    else:
+                        st.success("🎓 Feedback")
+                        st.markdown(feedback_list[str(q_num)])
+        
                 timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
                 json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
                 Image.open(image_path).convert("RGB").save(os.path.join(HISTORY_DIR, f"{timestamp}.jpg"))
@@ -215,7 +243,7 @@ Please identify any mistakes, if any, and explain how to solve the problem step 
                         "feedback": feedback_list,
                         "image": os.path.join(HISTORY_DIR, f"{timestamp}.jpg")
                     }, f)
-
+        
                 os.remove(image_path)
                 try:
                     requests.delete(RENDER_DELETE_ALL)
@@ -223,6 +251,7 @@ Please identify any mistakes, if any, and explain how to solve the problem step 
                     st.warning("Could not delete uploaded files from server.")
             else:
                 st.warning("No new image received in time. Please try again.")
+
                 
         elif subject == "Story Mountain":
             def generate_story_task():
