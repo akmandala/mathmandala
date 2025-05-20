@@ -7,6 +7,7 @@ import re
 import os
 import time
 import json
+import logging
 
 # === CONFIG ===
 MATHPIX_APP_ID = st.secrets["MATHPIX_APP_ID"]
