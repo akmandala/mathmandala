@@ -122,7 +122,7 @@ Q6. The following are the test scores of seven students: 85, 90, 88, 92, 95, 88,
                         problems[number] = match.group(2)
                 return problems
 
-             def ocr_with_mathpix_full(image_path):
+            def ocr_with_mathpix_full(image_path):
                 with open(image_path, "rb") as image_file:
                     img_base64 = base64.b64encode(image_file.read()).decode()
         
