@@ -122,70 +122,53 @@ Q6. The following are the test scores of seven students: 85, 90, 88, 92, 95, 88,
                         problems[number] = match.group(2)
                 return problems
 
-            def ocr_with_mathpix_retry(image_path, expected_questions=6):
-                for attempt in range(2):
-                    with open(image_path, "rb") as image_file:
-                        img_base64 = base64.b64encode(image_file.read()).decode()
+             def ocr_with_mathpix_full(image_path):
+                with open(image_path, "rb") as image_file:
+                    img_base64 = base64.b64encode(image_file.read()).decode()
         
-                    headers = {
-                        "app_id": MATHPIX_APP_ID,
-                        "app_key": MATHPIX_APP_KEY,
-                        "Content-type": "application/json"
-                    }
+                headers = {
+                    "app_id": MATHPIX_APP_ID,
+                    "app_key": MATHPIX_APP_KEY,
+                    "Content-type": "application/json"
+                }
         
-                    data = {
-                        "src": f"data:image/jpeg;base64,{img_base64}",
-                        "formats": ["text"],
-                        "ocr": ["math", "text"]
-                    }
+                data = {
+                    "src": f"data:image/jpeg;base64,{img_base64}",
+                    "formats": ["text"],
+                    "ocr": ["math", "text"]
+                }
         
-                    response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
-                    text = response.json().get("text", "")
-                    answers = parse_numbered_answers(text)
+                response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
+                full_text = response.json().get("text", "")
+                return full_text
         
-                    if len(answers) >= expected_questions:
-                        return answers
-                    time.sleep(1.5)
-                return answers
-        
-            def parse_numbered_answers(text):
-                answers = {}
-                current = None
-                for line in text.splitlines():
-                    match = re.match(r'^Q(\d+)\.', line.strip())
-                    if match:
-                        current = int(match.group(1))
-                        answers[current] = []
-                    elif current:
-                        answers[current].append(line)
-                return {str(k): '\n'.join(v).strip() for k, v in answers.items()}
-        
-            def get_openai_math_feedback(questions_dict, answers_dict, image_path):
+            def get_openai_math_feedback_full(questions_dict, ocr_text, image_path):
                 with open(image_path, "rb") as img_file:
                     image_b64 = base64.b64encode(img_file.read()).decode()
         
                 prompt = f"""
 You are a math tutor reviewing a scanned student worksheet. You will receive:
 
-1. The **OCR text**, extracted from the image, already organized by question number (Q1 to Q6).
-2. The **original image**, encoded in base64, for visual reference.
+1. The full OCR text extracted from the image (including all workings).
+2. The original image as a base64 JPEG.
+3. The list of 6 original questions.
 
 Your task:
-- Analyze each question using **both** the OCR text and the image to identify mistakes and suggest improvements.
-- Return a **JSON object** structured like:
-{{
-  "Q1": "Feedback for question 1...",
-  "Q2": "Feedback for question 2...",
-  ...
-}}
+- For each question Q1 to Q6, match the student's corresponding handwritten answer from the OCR.
+- Review the student's solution using both the text and the image.
+- Provide detailed feedback per question, including any mistakes and how to correct them.
+- Return a JSON object with keys Q1 to Q6.
 
 OCR Text:
-{json.dumps(answers_dict, indent=2)}
+{ocr_text}
 
-Base64 Image (JPEG):
+Questions:
+{json.dumps(questions_dict, indent=2)}
+
+Image:
 data:image/jpeg;base64,{image_b64}
 
-Start your JSON reply now:
+Reply with JSON:
 """
                 response = client.chat.completions.create(
                     model="gpt-4-vision-preview",
@@ -217,10 +200,9 @@ Start your JSON reply now:
             image_path, image_name = fetch_latest_image()
             if image_path:
                 placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_container_width=True)
-                with st.spinner("Reading sheet with MathPix..."):
-                    answers = ocr_with_mathpix_retry(image_path, expected_questions=6)
-                with st.spinner("Tutoring in progress..."):
-                    feedback_json = get_openai_math_feedback(PROBLEMS, answers, image_path)
+                with st.spinner("Reading sheet with MathPix and sending to AI..."):
+                    ocr_text = ocr_with_mathpix_full(image_path)
+                    feedback_json = get_openai_math_feedback_full(PROBLEMS, ocr_text, image_path)
         
                 feedback_list = feedback_json if isinstance(feedback_json, dict) else {}
                 for q_num, question in PROBLEMS.items():
@@ -239,7 +221,7 @@ Start your JSON reply now:
                         "timestamp": timestamp,
                         "subject": subject,
                         "problems": PROBLEMS,
-                        "answers": {k: v for k, v in answers.items()},
+                        "ocr_text": ocr_text,
                         "feedback": feedback_list,
                         "image": os.path.join(HISTORY_DIR, f"{timestamp}.jpg")
                     }, f)
@@ -252,7 +234,6 @@ Start your JSON reply now:
             else:
                 st.warning("No new image received in time. Please try again.")
 
-                
         elif subject == "Story Mountain":
             def generate_story_task():
                 prompt = """
