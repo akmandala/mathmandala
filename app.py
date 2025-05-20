@@ -172,7 +172,7 @@ data:image/jpeg;base64,{image_b64}
 Reply with JSON:
 """
                 response = client.chat.completions.create(
-                    model="gpt-4-vision-preview",
+                    model="gpt-4-vision",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.2,
                     max_tokens=1500
