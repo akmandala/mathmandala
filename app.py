@@ -86,7 +86,6 @@ else:
     subject = st.selectbox("Select Subject", ["Math", "Story Mountain", "Biology"])
     if st.button("🚀 Generate Task"):
         if subject == "Math":
-            import json
             def generate_dynamic_problems():
                 prompt = """
 Generate 6 challenging and diverse Year 7 math problems. Each should come from a different area:
@@ -146,7 +145,8 @@ Q6. The following are the test scores of seven students: 85, 90, 88, 92, 95, 88,
             def get_openai_math_feedback_full(questions_dict, ocr_text, image_path):
                 with open(image_path, "rb") as img_file:
                     image_b64 = base64.b64encode(img_file.read()).decode()
-        
+                    
+                import json, re
                 prompt = f"""
 You are a math tutor reviewing a scanned student worksheet. You will receive:
 
@@ -178,7 +178,6 @@ Reply with JSON:
                     max_tokens=1500
                 )
         
-                import json, re
                 try:
                     raw = response.choices[0].message.content
                     match = re.search(r"\{.*\}", raw, re.DOTALL)
