@@ -86,6 +86,7 @@ else:
     subject = st.selectbox("Select Subject", ["Math", "Story Mountain", "Biology"])
     if st.button("🚀 Generate Task"):
         if subject == "Math":
+            import json
             def generate_dynamic_problems():
                 prompt = """
 Generate 6 challenging and diverse Year 7 math problems. Each should come from a different area:
