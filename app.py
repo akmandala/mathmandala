@@ -12,15 +12,13 @@ import logging
 
 if os.path.exists("/etc/secrets/secrets.toml"):
     st_secrets = toml.load("/etc/secrets/secrets.toml")
-    st.info("✅ Loaded secrets from /etc/secrets/")
 else:
     st_secrets = st.secrets
-    st.warning("⚠️ Using Streamlit default secrets (not from /etc/secrets)")
 
 # === CONFIG ===
-MATHPIX_APP_ID = st.secrets["MATHPIX_APP_ID"]
-MATHPIX_APP_KEY = st.secrets["MATHPIX_APP_KEY"]
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+MATHPIX_APP_ID = st_secrets["MATHPIX_APP_ID"]
+MATHPIX_APP_KEY = st_secrets["MATHPIX_APP_KEY"]
+client = OpenAI(api_key=st_secrets["OPENAI_API_KEY"])
 RENDER_UPLOADS_URL = "https://mathmandala-upload.onrender.com/uploads"
 RENDER_FILE_BASE = "https://mathmandala-upload.onrender.com/files"
 RENDER_DELETE_ALL = "https://mathmandala-upload.onrender.com/delete-all"
