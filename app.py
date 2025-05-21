@@ -10,8 +10,8 @@ import time
 import json
 import logging
 
-if os.path.exists("/opt/render/.streamlit/secrets.toml"):
-    st_secrets = toml.load("/opt/render/.streamlit/secrets.toml")
+if os.path.exists("/etc/secrets/secrets.toml"):
+    st_secrets = toml.load("/etc/secrets/secrets.toml")
 else:
     st_secrets = st.secrets  # fallback for local/Streamlit Cloud
 
