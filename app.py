@@ -206,15 +206,21 @@ Reply with JSON:
                 with st.spinner("Reading sheet with MathPix and sending to AI..."):
                     ocr_text = ocr_with_mathpix_full(image_path)
                     feedback_json = get_openai_math_feedback_full(PROBLEMS, ocr_text, image_path)
-        
+    
                 feedback_list = feedback_json if isinstance(feedback_json, dict) else {}
                 for q_num, question in PROBLEMS.items():
                     st.markdown(f"---\n### Q{q_num}. {question}")
-                    if str(q_num) not in feedback_list:
+                    
+                    data = feedback_json.get(f"{q_num}")
+                    if not data:
                         st.warning("No feedback received for this question.")
-                    else:
-                        st.success("🎓 Feedback")
-                        st.markdown(feedback_list[str(q_num)])
+                        continue
+                
+                    st.markdown("**✍️ Student Answer:**")
+                    st.code(data["student_answer"], language="text")
+                
+                    st.markdown("**🎓 Feedback:**")
+                    st.markdown(data["feedback"])
         
                 timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
                 json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
@@ -433,3 +439,4 @@ Then provide constructive feedback for improvement.
                     st.warning("Could not delete uploaded files from server.")
             else:
                 st.warning("No biology drawing received in time. Please try again.")
+
