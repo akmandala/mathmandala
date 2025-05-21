@@ -152,14 +152,13 @@ Q6. The following are the test scores of seven students: 85, 90, 88, 92, 95, 88,
 You are a math tutor reviewing a scanned student worksheet. You will receive:
 
 1. The full OCR text extracted from the image (including all workings).
-2. The original image as a base64 JPEG.
-3. The list of 6 original questions.
+2. The list of 6 original questions.
 
 Your task:
 - For each question Q1 to Q6, match the student's corresponding handwritten answer from the OCR.
-- Review the student's solution using both the text and the image.
-- Provide detailed feedback per question, including any mistakes and how to correct them.
-- Return a JSON object with keys Q1 to Q6.
+- Review the student's solution using the OCR text.
+- Provide detailed feedback per question, including any mistakes and detailed steps how to correct them.
+- Return a JSON object with keys 1 to 6.
 
 OCR Text:
 {ocr_text}
@@ -167,15 +166,10 @@ OCR Text:
 Questions:
 {json.dumps(questions_dict, indent=2)}
 
-Image:
-data:image/jpeg;base64,{image_b64}
-
 Reply with JSON:
 """
-                print("=== PROMPT TO OPENAI ===")
-                print(prompt[:1500] + "\n... (truncated)" if len(prompt) > 1500 else prompt)
                 response = client.chat.completions.create(
-                    model="gpt-4.1",
+                    model="gpt-4",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.2,
                     max_tokens=1500
@@ -433,4 +427,3 @@ Then provide constructive feedback for improvement.
                     st.warning("Could not delete uploaded files from server.")
             else:
                 st.warning("No biology drawing received in time. Please try again.")
-
