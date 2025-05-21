@@ -12,8 +12,10 @@ import logging
 
 if os.path.exists("/etc/secrets/secrets.toml"):
     st_secrets = toml.load("/etc/secrets/secrets.toml")
+    st.info("✅ Loaded secrets from /etc/secrets/")
 else:
-    st_secrets = st.secrets  # fallback for local/Streamlit Cloud
+    st_secrets = st.secrets
+    st.warning("⚠️ Using Streamlit default secrets (not from /etc/secrets)")
 
 # === CONFIG ===
 MATHPIX_APP_ID = st.secrets["MATHPIX_APP_ID"]
