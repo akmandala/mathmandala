@@ -5,9 +5,15 @@ import base64
 from PIL import Image
 import re
 import os
+import toml
 import time
 import json
 import logging
+
+if os.path.exists("/etc/secrets/secrets.toml"):
+    st_secrets = toml.load("/etc/secrets/secrets.toml")
+else:
+    st_secrets = st.secrets  # fallback for local/Streamlit Cloud
 
 # === CONFIG ===
 MATHPIX_APP_ID = st.secrets["MATHPIX_APP_ID"]
