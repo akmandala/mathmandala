@@ -1,129 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Math Mandala - Capture</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Math Mandala Capture</title>
   <style>
     body {
-      margin: 0;
-      background: #f0f0f0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f0f2f6;
+      color: #31333f;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      font-family: sans-serif;
-      height: 100vh;
+      padding: 2rem;
     }
-    video {
-      width: 90%;
-      max-width: 640px;
-      border: 2px solid #333;
-      margin-bottom: 12px;
+    h1 {
+      color: #4a4a4a;
     }
-    select, input, button {
-      font-size: 1em;
-      margin: 6px;
-      padding: 5px;
+    .input-group {
+      margin-bottom: 1rem;
+      width: 100%;
+      max-width: 400px;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+    }
+    video, canvas {
+      margin-top: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 0.5rem;
+      max-width: 100%;
+    }
+    #capture-button {
+      background-color: #ff4b4b;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #capture-button:hover {
+      background-color: #e04343;
     }
   </style>
 </head>
 <body>
-  <label>Student Name</label>
-  <input type="text" id="name" placeholder="e.g. John" />
-
-  <label>Subject</label>
-  <select id="subject">
-    <option value="math">Math</option>
-    <option value="story">Story</option>
-  </select>
-
-  <label>Camera</label>
-  <select id="cameraSelect"></select>
-
-  <button id="start">Start Camera</button>
+  <h1>📸 Math Mandala Capture</h1>
+  <div class="input-group">
+    <label for="email">Student Email:</label>
+    <input type="email" id="email" placeholder="Enter your email" required />
+  </div>
+  <div class="input-group">
+    <label for="camera">Select Camera:</label>
+    <select id="camera"></select>
+  </div>
   <video id="video" autoplay playsinline></video>
-
-  <div id="message">📷 Capturing in 3 seconds...</div>
-  <canvas id="canvas" style="display: none;"></canvas>
+  <button id="capture-button">Capture Photo</button>
+  <canvas id="canvas" style="display:none;"></canvas>
 
   <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const nameInput = document.getElementById("name");
-    const subjectInput = document.getElementById("subject");
-    const cameraSelect = document.getElementById("cameraSelect");
-    const startBtn = document.getElementById("start");
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const cameraSelect = document.getElementById('camera');
+    const captureButton = document.getElementById('capture-button');
+    let currentStream;
 
-    nameInput.value = localStorage.getItem("studentName") || "";
-    subjectInput.value = localStorage.getItem("subjectName") || "math";
-
-    function loadCameras() {
-      navigator.mediaDevices.enumerateDevices().then(devices => {
-        devices.filter(d => d.kind === "videoinput").forEach((device, i) => {
-          const option = document.createElement("option");
-          option.value = device.deviceId;
-          option.text = device.label || `Camera ${i + 1}`;
-          cameraSelect.appendChild(option);
-        });
-        const savedCamera = localStorage.getItem("cameraId");
-        if (savedCamera) cameraSelect.value = savedCamera;
+    async function getCameras() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      cameraSelect.innerHTML = '';
+      videoDevices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.text = device.label || `Camera ${index + 1}`;
+        cameraSelect.appendChild(option);
       });
     }
 
-    startBtn.addEventListener("click", () => {
-      const name = nameInput.value || "student";
-      const subject = subjectInput.value || "math";
-      const cameraId = cameraSelect.value;
-
-      localStorage.setItem("studentName", name);
-      localStorage.setItem("subjectName", subject);
-      localStorage.setItem("cameraId", cameraId);
-
-      navigator.mediaDevices.getUserMedia({
+    async function startCamera(deviceId) {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+      const constraints = {
         video: {
-          width: { ideal: 800 },
-          height: { ideal: 600 },
-          deviceId: { exact: cameraId }
+          deviceId: { exact: deviceId }
         }
-      }).then(stream => {
-        video.srcObject = stream;
+      };
+      currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = currentStream;
+    }
 
-        setTimeout(() => {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          canvas.getContext("2d").drawImage(video, 0, 0);
-
-          canvas.toBlob(blob => {
-            const now = new Date().toISOString().replace(/[:.]/g, "-");
-            const filename = `mathmandala_${name}_${subject}_${now}.jpg`;
-
-            const formData = new FormData();
-            formData.append("file", blob, filename);
-            formData.append("name", name);
-            formData.append("subject", subject);
-
-            fetch("https://mathmandala-upload.onrender.com/upload", {
-              method: "POST",
-              body: formData
-            }).then(response => {
-              if (response.ok) {
-                document.getElementById("message").textContent = "✅ Uploaded successfully!";
-              } else {
-                document.getElementById("message").textContent = "❌ Upload failed.";
-              }
-            }).catch(error => {
-              document.getElementById("message").textContent = "❌ Error sending to server.";
-            });
-
-            stream.getTracks().forEach(track => track.stop());
-          }, "image/jpeg");
-        }, 3000);
-      }).catch(err => {
-        document.getElementById("message").textContent = "⚠️ Camera access error.";
-      });
+    cameraSelect.addEventListener('change', () => {
+      startCamera(cameraSelect.value);
     });
 
-    loadCameras();
+    captureButton.addEventListener('click', () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      canvas.style.display = 'block';
+      // You can add code here to send the image to your server
+    });
+
+    // Initialize
+    getCameras().then(() => {
+      if (cameraSelect.options.length > 0) {
+        startCamera(cameraSelect.value);
+      }
+    });
   </script>
 </body>
 </html>
