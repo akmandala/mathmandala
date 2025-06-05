@@ -74,7 +74,7 @@
       border: 1px solid #ccc;
       border-radius: 0.5rem;
       max-width: 100%;
-      width: 450px;
+      width: 600px;
       height: auto;
     }
 
@@ -105,85 +105,74 @@
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
   </div>
+  
+<script>
+  let stream;
+  let video;
+  let canvas;
+  let nameInput = document.getElementById("name");
+  let message = document.getElementById("message");
+  let uploadBtn = document.getElementById("uploadBtn");
 
-  <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const cameraSelect = document.getElementById('camera');
-    const captureButton = document.getElementById('capture-button');
-    const message = document.getElementById('message');
-    let currentStream;
-
-    async function getCameras() {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      cameraSelect.innerHTML = '';
-      videoDevices.forEach((device, index) => {
-        const option = document.createElement('option');
-        option.value = device.deviceId;
-        option.text = device.label || `Camera ${index + 1}`;
-        cameraSelect.appendChild(option);
-      });
-    }
-
-    async function startCamera(deviceId) {
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
-      const constraints = {
-        video: { deviceId: { exact: deviceId } }
-      };
-      currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = currentStream;
-    }
-
-    cameraSelect.addEventListener('change', () => {
-      startCamera(cameraSelect.value);
+  async function initCamera() {
+    const deviceId = document.getElementById("camera").value;
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: deviceId ? { exact: deviceId } : undefined }
     });
+    video = document.querySelector("video");
+    video.srcObject = stream;
+  }
 
-    captureButton.addEventListener('click', async () => {
-      const email = document.getElementById("email").value.trim();
-      if (!email) {
-        message.textContent = "❌ Please enter a valid email.";
-        return;
-      }
+  function captureAndUpload() {
+    // Disable upload to prevent double clicks
+    uploadBtn.disabled = true;
+    message.textContent = "📤 Uploading...";
 
-      // Capture frame to canvas
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas = document.getElementById("snapshot");
+    const context = canvas.getContext("2d");
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Convert canvas to blob
-      canvas.toBlob(async (blob) => {
-        const now = new Date().toISOString().replace(/[:.]/g, "-");
-        const filename = `mathmandala_${email}_${now}.jpg`;
+    canvas.toBlob(blob => {
+      const now = new Date().toISOString().replace(/[:.]/g, "-");
+      const name = nameInput.value.trim() || "unknown";
+      const filename = `mathmandala_${name}_${now}.jpg`;
 
-        const formData = new FormData();
-        formData.append("file", blob, filename);
-        formData.append("name", email);
+      const formData = new FormData();
+      formData.append("file", blob, filename);
+      formData.append("name", name);
 
-        message.textContent = "⏳ Uploading...";
-        try {
-          const response = await fetch("https://mathmandala-upload.onrender.com/upload", {
-            method: "POST",
-            body: formData
-          });
-          if (response.ok) {
-            message.textContent = "✅ Uploaded successfully!";
-          } else {
-            message.textContent = "❌ Upload failed.";
-          }
-        } catch (error) {
-          message.textContent = "❌ Error sending to server.";
+      fetch("https://mathmandala-upload.onrender.com/upload", {
+        method: "POST",
+        body: formData
+      }).then(response => {
+        if (response.ok) {
+          message.textContent = "✅ Uploaded successfully!";
+        } else {
+          message.textContent = "❌ Upload failed.";
         }
-      }, "image/jpeg");
-    });
+      }).catch(error => {
+        message.textContent = "❌ Error sending to server.";
+      }).finally(() => {
+        uploadBtn.disabled = false;  // Re-enable button
+      });
+    }, "image/jpeg");
+  }
 
-    getCameras().then(() => {
-      if (cameraSelect.options.length > 0) {
-        startCamera(cameraSelect.value);
-      }
+  // Auto-load camera list and initialize
+  navigator.mediaDevices.enumerateDevices().then(devices => {
+    const cameraSelect = document.getElementById("camera");
+    devices.filter(d => d.kind === "videoinput").forEach(device => {
+      const option = document.createElement("option");
+      option.value = device.deviceId;
+      option.text = device.label || `Camera ${cameraSelect.length + 1}`;
+      cameraSelect.appendChild(option);
     });
-  </script>
+    initCamera();
+  });
+
+  // When camera is changed manually
+  document.getElementById("camera").addEventListener("change", initCamera);
+  uploadBtn.addEventListener("click", captureAndUpload);
+</script>
 </body>
 </html>
