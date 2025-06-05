@@ -103,38 +103,35 @@
 
   <div class="preview-row">
     <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" width="640" height="480"></canvas>
   </div>
-  
+
 <script>
   let stream;
-  let video;
-  let canvas;
-  let nameInput = document.getElementById("name");
-  let message = document.getElementById("message");
-  let uploadBtn = document.getElementById("capture-button");
+  const emailInput = document.getElementById("email");
+  const message = document.getElementById("message");
+  const canvas = document.getElementById("canvas");
+  const video = document.getElementById("video");
+  const captureButton = document.getElementById("capture-button");
 
   async function initCamera() {
     const deviceId = document.getElementById("camera").value;
     stream = await navigator.mediaDevices.getUserMedia({
       video: { deviceId: deviceId ? { exact: deviceId } : undefined }
     });
-    video = document.querySelector("video");
     video.srcObject = stream;
   }
 
   function captureAndUpload() {
-    // Disable upload to prevent double clicks
-    uploadBtn.disabled = true;
+    captureButton.disabled = true;
     message.textContent = "📤 Uploading...";
 
-    canvas = document.getElementById("snapshot");
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     canvas.toBlob(blob => {
       const now = new Date().toISOString().replace(/[:.]/g, "-");
-      const name = nameInput.value.trim() || "unknown";
+      const name = emailInput.value.trim() || "unknown";
       const filename = `mathmandala_${name}_${now}.jpg`;
 
       const formData = new FormData();
@@ -153,12 +150,11 @@
       }).catch(error => {
         message.textContent = "❌ Error sending to server.";
       }).finally(() => {
-        uploadBtn.disabled = false;  // Re-enable button
+        captureButton.disabled = false;
       });
     }, "image/jpeg");
   }
 
-  // Auto-load camera list and initialize
   navigator.mediaDevices.enumerateDevices().then(devices => {
     const cameraSelect = document.getElementById("camera");
     devices.filter(d => d.kind === "videoinput").forEach(device => {
@@ -170,9 +166,8 @@
     initCamera();
   });
 
-  // When camera is changed manually
   document.getElementById("camera").addEventListener("change", initCamera);
-  uploadBtn.addEventListener("click", captureAndUpload);
+  captureButton.addEventListener("click", captureAndUpload);
 </script>
 </body>
 </html>
