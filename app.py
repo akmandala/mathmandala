@@ -213,13 +213,13 @@ Reply with JSON:
 
             st.components.v1.iframe(
                 "https://akmandala.github.io/mathmandala/capture.html",
-                height=750,
+                height=700,
                 scrolling=True
             )
             
             placeholder = st.empty()
             st.info("⏳ Waiting for your uploaded image from the camera...")
-            with st.spinner("Looking for your image (up to 2 minutes)..."):
+            with st.spinner("Looking for your image..."):
                 image_path, image_name = fetch_latest_image(timeout=120)  # Extend timeout here
             if image_path:
                 placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_container_width=True)
