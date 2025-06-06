@@ -388,57 +388,63 @@ Remember, accuracy and attention to detail are crucial for this assignment. Your
                 #return response.choices[0].message.content
                 return text
 
-            def feedback_on_biology_drawing(text):
-                prompt = f"""
-This is a student's labeled biology diagram:
-{text}
+            def feedback_on_biology_drawing_with_image(image_path):
+                    with open(image_path, "rb") as image_file:
+                        image_data = image_file.read()
+                        image_base64 = base64.b64encode(image_data).decode("utf-8")
+            
+                    prompt = [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": """
+You are a biology teacher reviewing a student's hand-drawn and labeled diagram.
 
-Evaluate the drawing based on:
-- Whether all expected parts are present
-- The accuracy of the labels
-- Biological correctness
-- Any missing or mislabeled structures
+Please:
+- Identify whether the drawing shows the correct biological parts (e.g., nasal cavity, lungs, alveoli, etc.)
+- Judge the accuracy of label placements
+- Assess biological correctness
+- Provide clear, constructive feedback for improvement
 
-Then provide constructive feedback for improvement.
-"""
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3
-                )
-
-                return response.choices[0].message.content
-
-            st.markdown("Students should draw and label the assigned biological system.")
-            st.subheader("🧪 Biology Drawing Task")
-            task = generate_biology_task()
-            st.markdown(task)
-
-            st.info("Waiting for drawing upload from extension via Render...")
-            placeholder = st.empty()
-            image_path, image_name = fetch_latest_image()
-            if image_path:
-                placeholder.image(image_path, caption="Captured Biology Drawing", use_container_width=True)
-                with open(image_path, "rb") as image_file:
-                    img_base64 = base64.b64encode(image_file.read()).decode()
-                headers = {
-                    "app_id": MATHPIX_APP_ID,
-                    "app_key": MATHPIX_APP_KEY,
-                    "Content-type": "application/json"
-                }
-                data = {
-                    "src": f"data:image/jpeg;base64,{img_base64}",
-                    "formats": ["text"],
-                    "ocr": ["text"]
-                }
-                response = requests.post("https://api.mathpix.com/v3/text", json=data, headers=headers)
-                text = response.json().get("text", "")
-                if text:
-                    with st.spinner("Providing feedback on your diagram..."):
-                        feedback = feedback_on_biology_drawing(text)
+Now analyze this diagram:
+                                    """,
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{image_base64}"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+            
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=prompt,
+                        max_tokens=1000
+                    )
+                    return response.choices[0].message.content
+            
+                st.markdown("Students should draw and label the assigned biological system.")
+                st.subheader("🧪 Biology Drawing Task")
+                task = generate_biology_task()
+                st.markdown(task)
+            
+                st.info("Waiting for drawing upload from extension via Render...")
+                placeholder = st.empty()
+                image_path, image_name = fetch_latest_image()
+                if image_path:
+                    placeholder.image(image_path, caption="Captured Biology Drawing", use_container_width=True)
+            
+                    with st.spinner("Analyzing your diagram with GPT-4 Vision..."):
+                        feedback = feedback_on_biology_drawing_with_image(image_path)
+            
                     st.success("🧬 Feedback on Biology Diagram")
                     st.markdown(feedback)
-
+            
                     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
                     json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
                     Image.open(image_path).convert("RGB").save(os.path.join(HISTORY_DIR, f"{timestamp}.jpg"))
@@ -447,15 +453,14 @@ Then provide constructive feedback for improvement.
                             "timestamp": timestamp,
                             "subject": subject,
                             "task": task,
-                            "text": text,
                             "feedback": feedback,
                             "image": os.path.join(HISTORY_DIR, f"{timestamp}.jpg")
                         }, f)
-
-                os.remove(image_path)
-                try:
-                    requests.delete(RENDER_DELETE_ALL)
-                except:
-                    st.warning("Could not delete uploaded files from server.")
-            else:
-                st.warning("No biology drawing received in time. Please try again.")
+            
+                    os.remove(image_path)
+                    try:
+                        requests.delete(RENDER_DELETE_ALL)
+                    except:
+                        st.warning("Could not delete uploaded files from server.")
+                else:
+                    st.warning("No biology drawing received in time. Please try again.")
