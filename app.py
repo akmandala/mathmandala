@@ -417,65 +417,65 @@ Please:
 - Provide clear, constructive feedback for improvement
 
 Now analyze this diagram:
-                                    """,
-                                },
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{image_base64}"
-                                    }
+                                """,
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_base64}"
                                 }
-                            ]
-                        }
-                    ]
-            
-                    response = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=prompt,
-                        max_tokens=1000
-                    )
-                    return response.choices[0].message.content
-            
-                st.markdown("Students should draw and label the assigned biological system.")
-                st.subheader("🧪 Biology Drawing Task")
-                task = generate_biology_task()
-                st.markdown(task)
-            
-                st.components.v1.iframe(
-                    "https://akmandala.github.io/mathmandala/capture.html",
-                    height=720,
-                    scrolling=True
+                            }
+                        ]
+                    }
+                ]
+        
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=prompt,
+                    max_tokens=1000
                 )
-                
-                placeholder = st.empty()
-                st.info("⏳ Waiting for your uploaded image from the camera...")
-                with st.spinner("Looking for your image..."):
-                    image_path, image_name = fetch_latest_image(timeout=120)  # Extend timeout here
-                if image_path:
-                    placeholder.image(image_path, caption="Captured Biology Drawing", use_container_width=True)
+                return response.choices[0].message.content
             
-                    with st.spinner("Analyzing your diagram with GPT-4 Vision..."):
-                        feedback = feedback_on_biology_drawing_with_image(image_path)
+            st.markdown("Students should draw and label the assigned biological system.")
+            st.subheader("🧪 Biology Drawing Task")
+            task = generate_biology_task()
+            st.markdown(task)
+        
+            st.components.v1.iframe(
+                "https://akmandala.github.io/mathmandala/capture.html",
+                height=720,
+                scrolling=True
+            )
             
-                    st.success("🧬 Feedback on Biology Diagram")
-                    st.markdown(feedback)
-            
-                    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-                    json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
-                    Image.open(image_path).convert("RGB").save(os.path.join(HISTORY_DIR, f"{timestamp}.jpg"))
-                    with open(json_path, "w") as f:
-                        json.dump({
-                            "timestamp": timestamp,
-                            "subject": subject,
-                            "task": task,
-                            "feedback": feedback,
-                            "image": os.path.join(HISTORY_DIR, f"{timestamp}.jpg")
-                        }, f)
-            
-                    os.remove(image_path)
-                    try:
-                        requests.delete(RENDER_DELETE_ALL)
-                    except:
-                        st.warning("Could not delete uploaded files from server.")
-                else:
-                    st.warning("No biology drawing received in time. Please try again.")
+            placeholder = st.empty()
+            st.info("⏳ Waiting for your uploaded image from the camera...")
+            with st.spinner("Looking for your image..."):
+                image_path, image_name = fetch_latest_image(timeout=120)  # Extend timeout here
+            if image_path:
+                placeholder.image(image_path, caption="Captured Biology Drawing", use_container_width=True)
+        
+                with st.spinner("Analyzing your diagram with GPT-4 Vision..."):
+                    feedback = feedback_on_biology_drawing_with_image(image_path)
+        
+                st.success("🧬 Feedback on Biology Diagram")
+                st.markdown(feedback)
+        
+                timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+                json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
+                Image.open(image_path).convert("RGB").save(os.path.join(HISTORY_DIR, f"{timestamp}.jpg"))
+                with open(json_path, "w") as f:
+                    json.dump({
+                        "timestamp": timestamp,
+                        "subject": subject,
+                        "task": task,
+                        "feedback": feedback,
+                        "image": os.path.join(HISTORY_DIR, f"{timestamp}.jpg")
+                    }, f)
+        
+                os.remove(image_path)
+                try:
+                    requests.delete(RENDER_DELETE_ALL)
+                except:
+                    st.warning("Could not delete uploaded files from server.")
+            else:
+                st.warning("No biology drawing received in time. Please try again.")
