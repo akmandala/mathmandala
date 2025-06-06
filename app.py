@@ -78,8 +78,11 @@ if st.session_state.selected_history:
     if data['subject'] == "Math":
         for q_num, question in data["problems"].items():
             st.markdown(f"---\n### Q{q_num}. {question}")
-            #st.markdown(data["answers"].get(str(q_num), ""))
-            st.markdown(data["feedback"].get(str(q_num), ""))
+            student_answer = data.get("student_answer", "⚠️ No answer detected.")
+            st.code(student_answer, language="text")
+            feedback = data.get("feedback", "⚠️ No feedback received.")
+            st.markdown("**🎓 Feedback:**")
+            st.markdown(feedback)
     elif data['subject'] == "Story Mountain":
         st.markdown("### ✍️ Story Task")
         st.markdown(data["task"], unsafe_allow_html=True)
