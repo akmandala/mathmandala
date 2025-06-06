@@ -77,10 +77,19 @@ if st.session_state.selected_history:
     st.image(data["image"], caption="Past Submission", use_container_width=True)
     if data['subject'] == "Math":
         for q_num, question in data["problems"].items():
-            st.markdown(f"---\n### {q_num}. {question}")
-            student_answer = data.get("student_answer", "⚠️ No answer detected.")
+            st.markdown(f"---\n### Q{q_num}. {question}")
+        
+            feedback_entry = data["feedback"].get(str(q_num))  # Ensure key is string
+            if feedback_entry:
+                student_answer = feedback_entry.get("student_answer", "⚠️ No answer detected.")
+                feedback = feedback_entry.get("feedback", "⚠️ No feedback received.")
+            else:
+                student_answer = "⚠️ No answer detected."
+                feedback = "⚠️ No feedback received."
+        
+            st.markdown("**✍️ Student Answer:**")
             st.code(student_answer, language="text")
-            feedback = data.get("feedback", "⚠️ No feedback received.")
+        
             st.markdown("**🎓 Feedback:**")
             st.markdown(feedback)
     elif data['subject'] == "Story Mountain":
