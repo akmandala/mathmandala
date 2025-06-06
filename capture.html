@@ -44,7 +44,7 @@
       font-size: 1rem;
       border: 1px solid #ccc;
       border-radius: 0.5rem;
-      width: 20rem;
+      width: 12rem;
     }
 
     button {
@@ -62,20 +62,12 @@
       background-color: #e13c3c;
     }
 
-    .preview-row {
-      display: flex;
-      gap: 1.5rem;
+    #video {
       margin-top: 1.5rem;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    video, canvas {
       border: 1px solid #ccc;
       border-radius: 0.5rem;
-      max-width: 100%;
       width: 550px;
-      height: auto;
+      max-width: 100%;
     }
 
     #message {
@@ -85,12 +77,11 @@
   </style>
 </head>
 <body>
-  <h1>📸 Math Mandala Capture</h1>
 
   <div class="form-row">
     <div class="input-group">
       <label for="email">Student Name</label>
-      <input type="email" id="email" placeholder="Enter name" required />
+      <input type="text" id="email" placeholder="Enter name" required />
     </div>
     <div class="input-group">
       <label for="camera">Select Camera</label>
@@ -101,16 +92,12 @@
   <button id="capture-button">📷 Capture & Upload</button>
   <div id="message"></div>
 
-  <div class="preview-row">
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas" width="640" height="480"></canvas>
-  </div>
+  <video id="video" autoplay playsinline></video>
 
 <script>
   let stream;
   const emailInput = document.getElementById("email");
   const message = document.getElementById("message");
-  const canvas = document.getElementById("canvas");
   const video = document.getElementById("video");
   const captureButton = document.getElementById("capture-button");
 
@@ -126,6 +113,9 @@
     captureButton.disabled = true;
     message.textContent = "📤 Uploading...";
 
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
