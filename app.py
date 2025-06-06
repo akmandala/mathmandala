@@ -210,10 +210,16 @@ Reply with JSON:
             with st.expander("📝 Questions"):
                 for i in range(1, 7):
                     st.markdown(f"**Q{i}.** {PROBLEMS[i]}")
-        
+
+            st.components.v1.iframe(
+                "https://akmandala.github.io/mathmandala/capture.html",
+                height=750,
+                scrolling=True
+            )
+            
             st.info("Waiting for image upload from extension via Render server...")
             placeholder = st.empty()
-            image_path, image_name = fetch_latest_image()
+            image_path, image_name = fetch_latest_image(timeout=120)
             if image_path:
                 placeholder.image(image_path, caption="Captured by Math Mandala Extension", use_container_width=True)
                 with st.spinner("Reading sheet with MathPix and sending to AI..."):
