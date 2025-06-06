@@ -212,7 +212,7 @@ Reply with JSON:
 
             st.components.v1.iframe(
                 "https://akmandala.github.io/mathmandala/capture.html",
-                height=700,
+                height=720,
                 scrolling=True
             )
             
