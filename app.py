@@ -397,17 +397,17 @@ Remember, accuracy and attention to detail are crucial for this assignment. Your
                 return text
 
             def feedback_on_biology_drawing_with_image(image_path):
-                    with open(image_path, "rb") as image_file:
-                        image_data = image_file.read()
-                        image_base64 = base64.b64encode(image_data).decode("utf-8")
-            
-                    prompt = [
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": """
+                with open(image_path, "rb") as image_file:
+                    image_data = image_file.read()
+                    image_base64 = base64.b64encode(image_data).decode("utf-8")
+        
+                prompt = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": """
 You are a biology teacher reviewing a student's hand-drawn and labeled diagram.
 
 Please:
