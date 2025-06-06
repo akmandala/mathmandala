@@ -311,9 +311,17 @@ Student's Story Mountain:
             task = generate_story_task()
             st.markdown(task)
 
-            st.info("Waiting for Story Mountain scan from extension via Render...")
+            st.components.v1.iframe(
+                "https://akmandala.github.io/mathmandala/capture.html",
+                height=720,
+                scrolling=True
+            )
+            
             placeholder = st.empty()
-            image_path, image_name = fetch_latest_image()
+            st.info("⏳ Waiting for your uploaded image from the camera...")
+            with st.spinner("Looking for your image..."):
+                image_path, image_name = fetch_latest_image(timeout=120)  # Extend timeout here
+
             if image_path:
                 placeholder.image(image_path, caption="Captured Story Mountain", use_container_width=True)
                 with open(image_path, "rb") as image_file:
@@ -433,9 +441,16 @@ Now analyze this diagram:
                 task = generate_biology_task()
                 st.markdown(task)
             
-                st.info("Waiting for drawing upload from extension via Render...")
+                st.components.v1.iframe(
+                    "https://akmandala.github.io/mathmandala/capture.html",
+                    height=720,
+                    scrolling=True
+                )
+                
                 placeholder = st.empty()
-                image_path, image_name = fetch_latest_image()
+                st.info("⏳ Waiting for your uploaded image from the camera...")
+                with st.spinner("Looking for your image..."):
+                    image_path, image_name = fetch_latest_image(timeout=120)  # Extend timeout here
                 if image_path:
                     placeholder.image(image_path, caption="Captured Biology Drawing", use_container_width=True)
             
