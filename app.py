@@ -114,12 +114,12 @@ Do not include answers.
                 #)
                 #text = response.choices[0].message.content
                 text = """
-Q1. Solve for x: 5x - 3(2x - 7) = 11.
-Q2. The base of a triangle is 8 cm and the height is 15 cm. What is the area of the triangle?
-Q3. If you subtract 3.75 from 7.5, what is the result?
-Q4. In a bag of red and blue marbles, the ratio of red to blue marbles is 3:7. If there are 40 marbles in total, how many are blue?
+Q1. Three numbers a, b, and c satisfy the following equations: a + b = 12; b + c = 15; a + c = 13. Find the value of a + b + c.
+Q2. A rectangle with dimensions 10 cm by 6 cm has a right-angled triangle cut out from one corner. The triangle’s legs (along the rectangle’s sides) are 4 cm and 3 cm. Calculate the area of the remaining shape.
+Q3. Solve the equation: x/3 + x/4 = 7.
+Q4. A fruit punch is made by mixing orange juice and pineapple juice in the ratio 5:3. If 2 liters of pineapple juice are used, how many liters of orange juice are needed, and what is the total volume of the punch?
 Q5. A bag contains 4 red balls, 5 blue balls, and 3 green balls. If you pick one ball without looking, what is the probability that it is not green?
-Q6. The following are the test scores of seven students: 85, 90, 88, 92, 95, 88, 90. What is the median score?
+Q6. The mean of five numbers is 10. When a sixth number is added, the mean becomes 11. What is the sixth number?
                 """
                 problems = {}
                 for line in text.strip().split("\n"):
