@@ -216,11 +216,12 @@ Reply with JSON:
                         st.warning("No feedback received for this question.")
                         continue
                 
-                    st.markdown("**✍️ Student Answer:**")
-                    st.code(data["student_answer"], language="text")
-                
+                    student_answer = data.get("student_answer", "⚠️ No answer detected.")
+                    st.code(student_answer, language="text")
+
+                    feedback = data.get("feedback", "⚠️ No feedback received.")
                     st.markdown("**🎓 Feedback:**")
-                    st.markdown(data["feedback"])
+                    st.markdown(feedback)
         
                 timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
                 json_path = os.path.join(HISTORY_DIR, f"{timestamp}.json")
