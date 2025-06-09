@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PicoDAQ Dashboard</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    .device { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; }
+    .device h3 { margin: 0 0 0.5rem 0; }
+    .sample { font-family: monospace; font-size: 0.9em; }
+    .status { color: green; font-weight: bold; }
+    .error { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>PicoDAQ Dashboard</h1>
+  <button onclick="connectToMultipleSerials()">🔌 Connect Pico Devices</button>
+  <div id="devices"></div>
+
+<script>
+const FRAME_SIZE = 6 + 324 + 2;
+const FRAME_PAYLOAD_SIZE = 324;
+const SAMPLES_PER_FRAME = FRAME_PAYLOAD_SIZE / 3;
+
+const devicesDiv = document.getElementById("devices");
+
+async function connectToMultipleSerials() {
+  const ports = [];
+  while (true) {
+    try {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 921600 });
+      ports.push(port);
+      if (!confirm('Connect another Pico device?')) break;
+    } catch (error) {
+      console.error('Error selecting port:', error);
+      break;
+    }
+  }
+
+  ports.forEach((port, index) => {
+    const serialNumber = `PICO${index + 1}`;
+    createDeviceUI(port, serialNumber);
+    readFromPort(port, serialNumber);
+  });
+}
+
+function createDeviceUI(port, serialNumber) {
+  const div = document.createElement("div");
+  div.className = "device";
+  div.id = serialNumber;
+  div.innerHTML = `
+    <h3>${serialNumber}</h3>
+    <div>Status: <span class="status">Connected</span></div>
+    <div>Last Seq: <span id="${serialNumber}_seq">-</span></div>
+    <div>Last Sample: <span class="sample" id="${serialNumber}_val">---</span></div>
+  `;
+  devicesDiv.appendChild(div);
+}
+
+async function readFromPort(port, serialNumber) {
+  const reader = port.readable.getReader();
+  let buffer = new Uint8Array();
+  const csvData = [['Sequence Number', 'Sample Index', 'Sample Value']];
+  let continuousSample = 0;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer = concatUint8Arrays(buffer, value);
+
+      while (buffer.length >= FRAME_SIZE) {
+        const frame = buffer.slice(0, FRAME_SIZE);
+        buffer = buffer.slice(FRAME_SIZE);
+        const { sequence, payload } = decodeFrame(frame);
+        if (payload) {
+          document.getElementById(`${serialNumber}_seq`).innerText = sequence;
+          const samples = [];
+          for (let i = 0; i < FRAME_PAYLOAD_SIZE; i += 3) {
+            const sample = decodeSample24bit(payload.slice(i, i + 3));
+            samples.push(sample);
+            csvData.push([sequence, continuousSample++, sample]);
+          }
+          document.getElementById(`${serialNumber}_val`).innerText = samples[0];
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`❌ Error reading from ${serialNumber}:`, err);
+    document.querySelector(`#${serialNumber} .status`).innerText = "Disconnected";
+    document.querySelector(`#${serialNumber} .status`).className = "error";
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function concatUint8Arrays(a, b) {
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a);
+  out.set(b, a.length);
+  return out;
+}
+
+function decodeSample24bit(bytes) {
+  const val = (bytes[0] << 16) | (bytes[1] << 8) | bytes[2];
+  return (bytes[0] & 0x80) ? 0 : val;
+}
+
+function decodeFrame(data) {
+  if (data[0] !== 0xAA || data[1] !== 0x55) return {};
+  const sequence = (data[2] << 8) | data[3];
+  const payloadLen = (data[4] << 8) | data[5];
+  if (payloadLen !== FRAME_PAYLOAD_SIZE) return {};
+  const payload = data.slice(6, 6 + FRAME_PAYLOAD_SIZE);
+  const checksum = (data[6 + FRAME_PAYLOAD_SIZE] << 8) | data[7 + FRAME_PAYLOAD_SIZE];
+  const calculated = payload.reduce((sum, b) => sum + b, 0) & 0xFFFF;
+  if (checksum !== checksum) return {};
+  return { sequence, payload };
+}
+</script>
+</body>
+</html>
