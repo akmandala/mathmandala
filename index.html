@@ -1,124 +1,124 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PicoDAQ Dashboard</title>
+  <title>Pico Multi-Serial Dashboard</title>
   <style>
-    body { font-family: sans-serif; margin: 2rem; }
-    .device { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; }
-    .device h3 { margin: 0 0 0.5rem 0; }
-    .sample { font-family: monospace; font-size: 0.9em; }
-    .status { color: green; font-weight: bold; }
-    .error { color: red; font-weight: bold; }
+    body { font-family: sans-serif; margin: 20px; }
+    .device-box { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+    button { margin-right: 10px; }
+    pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
   </style>
 </head>
 <body>
-  <h1>PicoDAQ Dashboard</h1>
-  <button onclick="connectToMultipleSerials()">🔌 Connect Pico Devices</button>
-  <div id="devices"></div>
+  <h2>🧪 PicoDAQ Dashboard</h2>
+  <button onclick="connectToDevices()">🔌 Connect Devices</button>
+  <div id="device-list"></div>
 
-<script>
-const FRAME_SIZE = 6 + 324 + 2;
-const FRAME_PAYLOAD_SIZE = 324;
-const SAMPLES_PER_FRAME = FRAME_PAYLOAD_SIZE / 3;
+  <script>
+    const FRAME_SIZE = 332;
+    const FRAME_PAYLOAD_SIZE = 324;
+    const devices = {};
 
-const devicesDiv = document.getElementById("devices");
-
-async function connectToMultipleSerials() {
-  const ports = [];
-  while (true) {
-    try {
-      const port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 921600 });
-      ports.push(port);
-      if (!confirm('Connect another Pico device?')) break;
-    } catch (error) {
-      console.error('Error selecting port:', error);
-      break;
-    }
-  }
-
-  ports.forEach((port, index) => {
-    const serialNumber = `PICO${index + 1}`;
-    createDeviceUI(port, serialNumber);
-    readFromPort(port, serialNumber);
-  });
-}
-
-function createDeviceUI(port, serialNumber) {
-  const div = document.createElement("div");
-  div.className = "device";
-  div.id = serialNumber;
-  div.innerHTML = `
-    <h3>${serialNumber}</h3>
-    <div>Status: <span class="status">Connected</span></div>
-    <div>Last Seq: <span id="${serialNumber}_seq">-</span></div>
-    <div>Last Sample: <span class="sample" id="${serialNumber}_val">---</span></div>
-  `;
-  devicesDiv.appendChild(div);
-}
-
-async function readFromPort(port, serialNumber) {
-  const reader = port.readable.getReader();
-  let buffer = new Uint8Array();
-  const csvData = [['Sequence Number', 'Sample Index', 'Sample Value']];
-  let continuousSample = 0;
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer = concatUint8Arrays(buffer, value);
-
-      while (buffer.length >= FRAME_SIZE) {
-        const frame = buffer.slice(0, FRAME_SIZE);
-        buffer = buffer.slice(FRAME_SIZE);
-        const { sequence, payload } = decodeFrame(frame);
-        if (payload) {
-          document.getElementById(`${serialNumber}_seq`).innerText = sequence;
-          const samples = [];
-          for (let i = 0; i < FRAME_PAYLOAD_SIZE; i += 3) {
-            const sample = decodeSample24bit(payload.slice(i, i + 3));
-            samples.push(sample);
-            csvData.push([sequence, continuousSample++, sample]);
-          }
-          document.getElementById(`${serialNumber}_val`).innerText = samples[0];
-        }
+    async function connectToDevices() {
+      try {
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 921600 });
+        const serialNumber = `PICO${Object.keys(devices).length + 1}`;
+        devices[serialNumber] = {
+          port,
+          buffer: new Uint8Array(),
+          collecting: true,
+          csvRows: [["Sequence Number", "Sample Index", "Sample Value"]],
+          continuousSample: 0
+        };
+        setupDeviceUI(serialNumber);
+        readFromPort(serialNumber);
+      } catch (e) {
+        alert("Error connecting: " + e);
       }
     }
-  } catch (err) {
-    console.error(`❌ Error reading from ${serialNumber}:`, err);
-    document.querySelector(`#${serialNumber} .status`).innerText = "Disconnected";
-    document.querySelector(`#${serialNumber} .status`).className = "error";
-  } finally {
-    reader.releaseLock();
-  }
-}
 
-function concatUint8Arrays(a, b) {
-  const out = new Uint8Array(a.length + b.length);
-  out.set(a);
-  out.set(b, a.length);
-  return out;
-}
+    function setupDeviceUI(serialNumber) {
+      const container = document.createElement('div');
+      container.className = "device-box";
+      container.id = `box-${serialNumber}`;
 
-function decodeSample24bit(bytes) {
-  const val = (bytes[0] << 16) | (bytes[1] << 8) | bytes[2];
-  return (bytes[0] & 0x80) ? 0 : val;
-}
+      container.innerHTML = `
+        <h3>${serialNumber}</h3>
+        <button onclick="toggleCollect('${serialNumber}')">⏹ Stop</button>
+        <button onclick="downloadCSV('${serialNumber}')">⬇️ Download CSV</button>
+        <pre id="preview-${serialNumber}">No data yet</pre>
+      `;
+      document.getElementById("device-list").appendChild(container);
+    }
 
-function decodeFrame(data) {
-  if (data[0] !== 0xAA || data[1] !== 0x55) return {};
-  const sequence = (data[2] << 8) | data[3];
-  const payloadLen = (data[4] << 8) | data[5];
-  if (payloadLen !== FRAME_PAYLOAD_SIZE) return {};
-  const payload = data.slice(6, 6 + FRAME_PAYLOAD_SIZE);
-  const checksum = (data[6 + FRAME_PAYLOAD_SIZE] << 8) | data[7 + FRAME_PAYLOAD_SIZE];
-  const calculated = payload.reduce((sum, b) => sum + b, 0) & 0xFFFF;
-  if (checksum !== checksum) return {};
-  return { sequence, payload };
-}
-</script>
+    function toggleCollect(serial) {
+      const dev = devices[serial];
+      dev.collecting = !dev.collecting;
+      const btn = document.querySelector(`#box-${serial} button`);
+      btn.textContent = dev.collecting ? "⏹ Stop" : "▶️ Start";
+    }
+
+    function downloadCSV(serial) {
+      const csv = devices[serial].csvRows.map(r => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${serial}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function readFromPort(serial) {
+      const dev = devices[serial];
+      const reader = dev.port.readable.getReader();
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          const combined = new Uint8Array(dev.buffer.length + value.length);
+          combined.set(dev.buffer);
+          combined.set(value, dev.buffer.length);
+          dev.buffer = combined;
+
+          while (dev.buffer.length >= FRAME_SIZE) {
+            const frame = dev.buffer.slice(0, FRAME_SIZE);
+            dev.buffer = dev.buffer.slice(FRAME_SIZE);
+            processFrame(serial, frame);
+          }
+        }
+      }
+      reader.releaseLock();
+    }
+
+    function decodeSample24bit(bytes) {
+      const val = (bytes[0] << 16) | (bytes[1] << 8) | bytes[2];
+      return (bytes[0] & 0x80) ? val | 0xFF000000 : val;
+    }
+
+    function processFrame(serial, frame) {
+      if (frame[0] !== 0xAA || frame[1] !== 0x55) return;
+      const seq = (frame[2] << 8) | frame[3];
+      const payload = frame.slice(6, 6 + FRAME_PAYLOAD_SIZE);
+      const checksum = (frame[6 + FRAME_PAYLOAD_SIZE] << 8) | frame[7 + FRAME_PAYLOAD_SIZE];
+      const sum = payload.reduce((acc, val) => acc + val, 0) & 0xFFFF;
+      if (sum !== checksum) return;
+
+      const dev = devices[serial];
+      if (!dev.collecting) return;
+
+      const preview = [];
+      for (let i = 0; i < FRAME_PAYLOAD_SIZE; i += 3) {
+        const sample = decodeSample24bit(payload.slice(i, i + 3));
+        dev.csvRows.push([seq, dev.continuousSample, sample]);
+        if (i < 30) preview.push(sample);
+        dev.continuousSample++;
+      }
+
+      document.getElementById(`preview-${serial}`).textContent = "Preview:\n" + preview.join(", ");
+    }
+  </script>
 </body>
 </html>
