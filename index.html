@@ -62,7 +62,7 @@ async function connectToDevices() {
   title.textContent = `📟 ${serial}`;
   container.appendChild(title);
 
-  const status = document.createElement("span");
+  const status = document.createElement("button");
   status.textContent = "Connected";
   container.appendChild(status);
 
@@ -132,7 +132,7 @@ async function readLoop(device) {
 
         // Preview first 5 samples
         if (device.collecting) {
-          device.previewEl.textContent = samples.slice(0, 5).map((v, i) => `S${i}: ${v}`).join("  ");
+          device.previewEl.textContent = samples.slice(0, 5).map((v, i) => `${i}: ${v}`).join("  ");
         }
       }
     } catch (e) {
