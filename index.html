@@ -27,7 +27,7 @@ const devices = {};
 
 function decodeSample24bit(b) {
   const val = (b[0] << 16) | (b[1] << 8) | b[2];
-  return (b[0] & 0x80) ? val : 0;
+  return (b[0] & 0x80) ? 0 : val;
 }
 
 function decodeFrame(data) {
