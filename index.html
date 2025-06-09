@@ -1,124 +1,176 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Pico Multi-Serial Dashboard</title>
+  <title>PicoDAQ Multi-Device</title>
   <style>
     body { font-family: sans-serif; margin: 20px; }
-    .device-box { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
-    button { margin-right: 10px; }
-    pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+    .device { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    .device h3 { margin-top: 0; }
+    .preview { font-family: monospace; white-space: pre; background: #f9f9f9; padding: 5px; margin-top: 5px; }
+    button:disabled { opacity: 0.5; }
   </style>
 </head>
 <body>
-  <h2>🧪 PicoDAQ Dashboard</h2>
-  <button onclick="connectToDevices()">🔌 Connect Devices</button>
-  <div id="device-list"></div>
+  <h2>📟 PicoDAQ Dashboard</h2>
+  <button onclick="connectToDevices()">🔌 Connect Pico Devices</button>
+  <div id="devices"></div>
 
-  <script>
-    const FRAME_SIZE = 332;
-    const FRAME_PAYLOAD_SIZE = 324;
-    const devices = {};
+<script>
+const VENDOR_ID = 0x2E8A;
+const PRODUCT_ID = 0x000A;
+const FRAME_SIZE = 332;
+const FRAME_PAYLOAD_SIZE = 324;
+const SAMPLES_PER_FRAME = FRAME_PAYLOAD_SIZE / 3;
+const FRAME_HEADER = [0xAA, 0x55];
 
-    async function connectToDevices() {
-      try {
-        const port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 921600 });
-        const serialNumber = `PICO${Object.keys(devices).length + 1}`;
-        devices[serialNumber] = {
-          port,
-          buffer: new Uint8Array(),
-          collecting: true,
-          csvRows: [["Sequence Number", "Sample Index", "Sample Value"]],
-          continuousSample: 0
-        };
-        setupDeviceUI(serialNumber);
-        readFromPort(serialNumber);
-      } catch (e) {
-        alert("Error connecting: " + e);
-      }
-    }
+const devices = {};
 
-    function setupDeviceUI(serialNumber) {
-      const container = document.createElement('div');
-      container.className = "device-box";
-      container.id = `box-${serialNumber}`;
+function decodeSample24bit(b) {
+  const val = (b[0] << 16) | (b[1] << 8) | b[2];
+  return (b[0] & 0x80) ? val : 0;
+}
 
-      container.innerHTML = `
-        <h3>${serialNumber}</h3>
-        <button onclick="toggleCollect('${serialNumber}')">⏹ Stop</button>
-        <button onclick="downloadCSV('${serialNumber}')">⬇️ Download CSV</button>
-        <pre id="preview-${serialNumber}">No data yet</pre>
-      `;
-      document.getElementById("device-list").appendChild(container);
-    }
+function decodeFrame(data) {
+  if (data[0] !== 0xAA || data[1] !== 0x55) return null;
+  const seq = (data[2] << 8) | data[3];
+  const payloadLen = (data[4] << 8) | data[5];
+  if (payloadLen !== FRAME_PAYLOAD_SIZE) return null;
+  const payload = data.slice(6, 6 + FRAME_PAYLOAD_SIZE);
+  const checksum = (data[6 + FRAME_PAYLOAD_SIZE] << 8) | data[7 + FRAME_PAYLOAD_SIZE];
+  const sum = payload.reduce((a, b) => a + b, 0) & 0xFFFF;
+  if (checksum !== sum) return null;
+  return { sequence: seq, payload };
+}
 
-    function toggleCollect(serial) {
-      const dev = devices[serial];
-      dev.collecting = !dev.collecting;
-      const btn = document.querySelector(`#box-${serial} button`);
-      btn.textContent = dev.collecting ? "⏹ Stop" : "▶️ Start";
-    }
+function getTimestamp() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(now.getDate())}${pad(now.getMonth() + 1)}${String(now.getFullYear()).slice(-2)}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+}
 
-    function downloadCSV(serial) {
-      const csv = devices[serial].csvRows.map(r => r.join(",")).join("\n");
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${serial}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+async function connectToDevices() {
+  const port = await navigator.serial.requestPort({ filters: [{ usbVendorId: VENDOR_ID, usbProductId: PRODUCT_ID }] });
+  await port.open({ baudRate: 921600 });
+  const info = port.getInfo();
+  const serial = `PICO${Object.keys(devices).length + 1}`;
+  const reader = port.readable.getReader();
 
-    async function readFromPort(serial) {
-      const dev = devices[serial];
-      const reader = dev.port.readable.getReader();
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) {
-          const combined = new Uint8Array(dev.buffer.length + value.length);
-          combined.set(dev.buffer);
-          combined.set(value, dev.buffer.length);
-          dev.buffer = combined;
+  const container = document.createElement("div");
+  container.className = "device";
 
-          while (dev.buffer.length >= FRAME_SIZE) {
-            const frame = dev.buffer.slice(0, FRAME_SIZE);
-            dev.buffer = dev.buffer.slice(FRAME_SIZE);
-            processFrame(serial, frame);
+  const title = document.createElement("h3");
+  title.textContent = `📟 ${serial}`;
+  container.appendChild(title);
+
+  const status = document.createElement("span");
+  status.textContent = "Connected";
+  container.appendChild(status);
+
+  const startBtn = document.createElement("button");
+  startBtn.textContent = "⏸ Stop";
+  startBtn.onclick = () => {
+    device.collecting = !device.collecting;
+    startBtn.textContent = device.collecting ? "⏸ Stop" : "▶ Start";
+  };
+  container.appendChild(startBtn);
+
+  const downloadBtn = document.createElement("button");
+  downloadBtn.textContent = "⬇ Download CSV";
+  downloadBtn.onclick = () => downloadCSV(serial);
+  container.appendChild(downloadBtn);
+
+  const preview = document.createElement("div");
+  preview.className = "preview";
+  preview.textContent = "...";
+  container.appendChild(preview);
+
+  document.getElementById("devices").appendChild(container);
+
+  const device = {
+    port,
+    reader,
+    serial,
+    csvRows: [["Sequence", "Index", "Value"]],
+    collecting: true,
+    connected: true,
+    statusEl: status,
+    startBtn: startBtn,
+    downloadBtn: downloadBtn,
+    previewEl: preview,
+    continuousSample: 0
+  };
+  devices[serial] = device;
+
+  readLoop(device);
+}
+
+async function readLoop(device) {
+  let buffer = new Uint8Array();
+
+  while (device.connected) {
+    try {
+      const { value, done } = await device.reader.read();
+      if (done) break;
+      buffer = new Uint8Array([...buffer, ...value]);
+
+      while (buffer.length >= FRAME_SIZE) {
+        const frame = buffer.slice(0, FRAME_SIZE);
+        buffer = buffer.slice(FRAME_SIZE);
+        const decoded = decodeFrame(frame);
+        if (!decoded) continue;
+
+        const { sequence, payload } = decoded;
+        const samples = [];
+        for (let i = 0; i < FRAME_PAYLOAD_SIZE; i += 3) {
+          const val = decodeSample24bit(payload.slice(i, i + 3));
+          if (device.collecting) {
+            device.csvRows.push([sequence, device.continuousSample, val]);
           }
+          device.continuousSample++;
+          samples.push(val);
+        }
+
+        // Preview first 5 samples
+        if (device.collecting) {
+          device.previewEl.textContent = samples.slice(0, 5).map((v, i) => `S${i}: ${v}`).join("  ");
         }
       }
-      reader.releaseLock();
+    } catch (e) {
+      console.error("Read error:", e);
+      break;
     }
+  }
 
-    function decodeSample24bit(bytes) {
-      const val = (bytes[0] << 16) | (bytes[1] << 8) | bytes[2];
-      return (bytes[0] & 0x80) ? val | 0xFF000000 : val;
+  device.reader.releaseLock();
+  device.connected = false;
+  device.statusEl.textContent = "Disconnected";
+  device.startBtn.disabled = true;
+  device.downloadBtn.disabled = true;
+}
+
+function downloadCSV(serial) {
+  const csv = devices[serial].csvRows.map(r => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const timestamp = getTimestamp();
+  a.download = `${serial}_${timestamp}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+navigator.serial.addEventListener("disconnect", (event) => {
+  for (const [serial, device] of Object.entries(devices)) {
+    if (device.port === event.target) {
+      device.connected = false;
+      device.statusEl.textContent = "Disconnected";
+      device.startBtn.disabled = true;
+      device.downloadBtn.disabled = true;
+      console.log(`🔌 ${serial} disconnected`);
     }
-
-    function processFrame(serial, frame) {
-      if (frame[0] !== 0xAA || frame[1] !== 0x55) return;
-      const seq = (frame[2] << 8) | frame[3];
-      const payload = frame.slice(6, 6 + FRAME_PAYLOAD_SIZE);
-      const checksum = (frame[6 + FRAME_PAYLOAD_SIZE] << 8) | frame[7 + FRAME_PAYLOAD_SIZE];
-      const sum = payload.reduce((acc, val) => acc + val, 0) & 0xFFFF;
-      if (sum !== checksum) return;
-
-      const dev = devices[serial];
-      if (!dev.collecting) return;
-
-      const preview = [];
-      for (let i = 0; i < FRAME_PAYLOAD_SIZE; i += 3) {
-        const sample = decodeSample24bit(payload.slice(i, i + 3));
-        dev.csvRows.push([seq, dev.continuousSample, sample]);
-        if (i < 30) preview.push(sample);
-        dev.continuousSample++;
-      }
-
-      document.getElementById(`preview-${serial}`).textContent = "Preview:\n" + preview.join(", ");
-    }
-  </script>
+  }
+});
+</script>
 </body>
 </html>
