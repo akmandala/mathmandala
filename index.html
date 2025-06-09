@@ -63,7 +63,7 @@ async function connectToDevices() {
   container.appendChild(title);
 
   const status = document.createElement("button");
-  status.textContent = "Connected";
+  status.textContent = "🟢 Connected";
   container.appendChild(status);
 
   const startBtn = document.createElement("button");
@@ -143,7 +143,7 @@ async function readLoop(device) {
 
   device.reader.releaseLock();
   device.connected = false;
-  device.statusEl.textContent = "Disconnected";
+  device.statusEl.textContent = "🔴 Disconnected";
   device.startBtn.disabled = true;
   device.downloadBtn.disabled = true;
 }
@@ -164,7 +164,7 @@ navigator.serial.addEventListener("disconnect", (event) => {
   for (const [serial, device] of Object.entries(devices)) {
     if (device.port === event.target) {
       device.connected = false;
-      device.statusEl.textContent = "Disconnected";
+      device.statusEl.textContent = "🔴 Disconnected";
       device.startBtn.disabled = true;
       device.downloadBtn.disabled = true;
       console.log(`🔌 ${serial} disconnected`);
